@@ -1,0 +1,11 @@
+{
+  "name": "command-bus",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": { "start": "node src/index.js" },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.3"
+  }
+}

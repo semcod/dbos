@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Platform OS</title>
+<style>
+  * { box-sizing: border-box; }
+  body { font: 14px/1.5 -apple-system, Segoe UI, sans-serif; margin: 0; color: #222; background: #f7f8fa; }
+  header { background: #111827; color: #fff; padding: 12px 20px; display: flex; gap: 16px; align-items: center; }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; }
+  header nav a { color: #cbd5e1; text-decoration: none; margin-right: 14px; }
+  header nav a.active, header nav a:hover { color: #fff; }
+  main { max-width: 1100px; margin: 20px auto; padding: 0 20px; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
+  th { background: #f9fafb; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge.active { background: #dcfce7; color: #166534; }
+  .badge.inactive { background: #e5e7eb; color: #374151; }
+  .badge.error { background: #fee2e2; color: #991b1b; }
+  .badge.maintenance { background: #fef3c7; color: #92400e; }
+  button { background: #111827; color: #fff; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
+  button.secondary { background: #e5e7eb; color: #111827; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 6px; overflow: auto; font-size: 12px; }
+  .login { max-width: 340px; margin: 80px auto; }
+  .login input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; }
+  .kv { display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; }
+  .kv dt { color: #6b7280; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  .muted { color: #6b7280; font-size: 12px; }
+  a { color: #2563eb; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+const API = window.location.protocol + '//' + window.location.hostname + ':3000';
+const state = {
+  token: localStorage.getItem('token'),
+  user:  JSON.parse(localStorage.getItem('user') || 'null'),
+  view:  'list',
+  entityTypeFilter: '',
+  selected: null,
+};
+
+async function api(path, opts = {}) {
+  const r = await fetch(API + path, {
+    ...opts,
+    headers: {
+      'content-type': 'application/json',
+      ...(state.token ? { authorization: 'Bearer ' + state.token } : {}),
+      ...(opts.headers || {}),
+    },
+  });
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  const ct = r.headers.get('content-type') || '';
+  return ct.includes('json') ? r.json() : r.text();
+}
+
+function h(html) { document.getElementById('app').innerHTML = html; }
+
+// ---------- views ----------
+function renderLogin(errMsg = '') {
+  h(`
+    <main class="login">
+      <div class="card">
+        <h2 style="margin-top:0">Platform OS — login</h2>
+        ${errMsg ? `<p style="color:#b91c1c">${errMsg}</p>` : ''}
+        <input id="email" value="admin@platform.local" placeholder="email">
+        <input id="password" type="password" value="demo1234" placeholder="password">
+        <button id="btn-login">Sign in</button>
+        <p class="muted">Demo accounts: admin / operator / viewer &middot; password: <code>demo1234</code></p>
+      </div>
+    </main>`);
+  document.getElementById('btn-login').onclick = async () => {
+    try {
+      const { token, user } = await api('/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({
+          email:    document.getElementById('email').value,
+          password: document.getElementById('password').value,
+        }),
+      });
+      state.token = token; state.user = user;
+      localStorage.setItem('token', token);
+      localStorage.setItem('user', JSON.stringify(user));
+      route();
+    } catch (e) { renderLogin(e.message); }
+  };
+}
+
+function header(active) {
+  return `<header>
+    <h1>⚙ Platform OS</h1>
+    <nav>
+      <a href="#list" class="${active==='list'?'active':''}">Entities</a>
+      <a href="#schemas" class="${active==='schemas'?'active':''}">Schemas</a>
+      <a href="#mime" class="${active==='mime'?'active':''}">MIME map</a>
+      <a href="#audit" class="${active==='audit'?'active':''}">Audit</a>
+    </nav>
+    <div style="flex:1"></div>
+    <span class="muted" style="color:#cbd5e1">${state.user.email} (${state.user.role})</span>
+    <a href="#" id="logout" style="color:#cbd5e1">log out</a>
+  </header>`;
+}
+
+async function renderList() {
+  const { data } = await api('/api/entities?limit=100');
+  h(header('list') + `
+    <main>
+      <div class="card">
+        <div class="row">
+          <strong>${data.length} entities</strong>
+          <span class="muted">filter:</span>
+          ${['', 'device', 'customer', 'article', 'page', 'scenario', 'protocol', 'image']
+            .map(t => `<button class="secondary" data-filter="${t}">${t || 'all'}</button>`).join('')}
+        </div>
+        <table>
+          <thead><tr><th>external_id</th><th>type</th><th>schema</th><th>MIME</th><th>version</th><th>updated</th></tr></thead>
+          <tbody>
+            ${data.map(e => `<tr>
+              <td><a href="#entity/${e.external_id}">${e.external_id}</a></td>
+              <td>${e.entity_type}</td>
+              <td><code>${e.schema_id}</code></td>
+              <td><code>${e.primary_mime}</code></td>
+              <td>${e.version}</td>
+              <td class="muted">${new Date(e.updated_at).toLocaleString()}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </main>`);
+  wireHeader();
+  document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
+    state.entityTypeFilter = b.dataset.filter; renderListFiltered();
+  });
+}
+
+async function renderListFiltered() {
+  const q = state.entityTypeFilter ? `?entity_type=${state.entityTypeFilter}&limit=100` : '?limit=100';
+  const { data } = await api('/api/entities' + q);
+  document.querySelector('tbody').innerHTML = data.map(e => `<tr>
+    <td><a href="#entity/${e.external_id}">${e.external_id}</a></td>
+    <td>${e.entity_type}</td><td><code>${e.schema_id}</code></td>
+    <td><code>${e.primary_mime}</code></td><td>${e.version}</td>
+    <td class="muted">${new Date(e.updated_at).toLocaleString()}</td></tr>`).join('');
+}
+
+async function renderEntity(extId) {
+  const result = await api('/api/entities/' + encodeURIComponent(extId));
+  const { entity, content, content_table } = result;
+
+  let contentBlock = '';
+  if (content) {
+    if (content.body !== undefined) contentBlock = `<pre>${escapeHtml(content.body)}</pre>`;
+    else if (content.raw_text) contentBlock = `<pre>${escapeHtml(content.raw_text)}</pre>`;
+    else if (content.data) contentBlock = `<pre>${escapeHtml(JSON.stringify(content.data, null, 2))}</pre>`;
+    else if (content.bytes) contentBlock = `<p>Binary blob (${content.size_bytes} bytes, ${content.mime})</p>`;
+    else contentBlock = `<pre>${escapeHtml(JSON.stringify(content, null, 2))}</pre>`;
+  }
+
+  const schema = await api('/schemas/' + entity.schema_id);
+  const renderers = schema.renderers || [];
+
+  h(header('list') + `
+    <main>
+      <div class="card">
+        <h2 style="margin:0 0 8px 0">${entity.external_id}</h2>
+        <dl class="kv">
+          <dt>entity_type</dt><dd>${entity.entity_type}</dd>
+          <dt>schema</dt><dd><a href="#schema/${entity.schema_id}">${entity.schema_id}</a></dd>
+          <dt>primary_mime</dt><dd><code>${entity.primary_mime}</code></dd>
+          <dt>content_table</dt><dd><code>${content_table}</code></dd>
+          <dt>version</dt><dd>${entity.version}</dd>
+          <dt>status</dt><dd>${entity.status}</dd>
+          <dt>updated</dt><dd class="muted">${new Date(entity.updated_at).toLocaleString()}</dd>
+        </dl>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">Content</h3>
+        ${contentBlock}
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0">Renderers</h3>
+        <p class="muted">Services that declared support for this schema:</p>
+        <div class="row">
+          ${renderers.length
+            ? renderers.map(r => `<button data-render="${r}">render via ${r}</button>`).join('')
+            : '<span class="muted">none</span>'}
+          <button class="secondary" id="btn-view-html">view rendered HTML</button>
+        </div>
+        <div id="render-out"></div>
+      </div>
+    </main>`);
+  wireHeader();
+
+  document.querySelectorAll('[data-render]').forEach(b => b.onclick = async () => {
+    const gen = b.dataset.render;
+    const portMap = { 'gen-jinja': 6001, 'gen-twig': 6002, 'gen-handlebars': 6003 };
+    const port = portMap[gen];
+    if (!port) {
+      document.getElementById('render-out').innerHTML = `<p class="muted">(${gen} not addressable from UI)</p>`;
+      return;
+    }
+    try {
+      const url = `${window.location.protocol}//${window.location.hostname}:${port}/render/${encodeURIComponent(entity.external_id)}`;
+      const r = await fetch(url, { method: 'POST' });
+      const out = await r.json();
+      document.getElementById('render-out').innerHTML = `<pre>${escapeHtml(JSON.stringify(out, null, 2))}</pre>`;
+    } catch (e) {
+      document.getElementById('render-out').innerHTML = `<pre style="color:#b91c1c">${e.message}</pre>`;
+    }
+  });
+
+  document.getElementById('btn-view-html').onclick = async () => {
+    try {
+      const html = await api('/api/entities/' + encodeURIComponent(entity.external_id) + '/html');
+      const w = window.open('', '_blank');
+      w.document.write(html); w.document.close();
+    } catch (e) {
+      document.getElementById('render-out').innerHTML = `<p class="muted">No rendered HTML yet — click a renderer first.</p>`;
+    }
+  };
+}
+
+async function renderSchemas() {
+  const schemas = await api('/schemas');
+  h(header('schemas') + `
+    <main>
+      <div class="card">
+        <h3 style="margin-top:0">Schema registry</h3>
+        <table>
+          <thead><tr><th>id</th><th>kind</th><th>MIME</th><th>renderers</th></tr></thead>
+          <tbody>
+            ${schemas.map(s => `<tr>
+              <td><code>${s.id}</code></td>
+              <td>${s.kind}</td>
+              <td><code>${s.mime_type}</code></td>
+              <td>${(s.renderers || []).map(r => `<code>${r}</code>`).join(' ')}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </main>`);
+  wireHeader();
+}
+
+async function renderMime() {
+  const mimes = await api('/mime-types');
+  h(header('mime') + `
+    <main>
+      <div class="card">
+        <h3 style="margin-top:0">MIME &rarr; content table routing</h3>
+        <p class="muted">This table is the single source of truth for where each MIME's payload lives. Services read from here at startup.</p>
+        <table>
+          <thead><tr><th>MIME</th><th>category</th><th>content_table</th><th>storage</th><th>handler</th></tr></thead>
+          <tbody>
+            ${mimes.map(m => `<tr>
+              <td><code>${m.mime}</code></td>
+              <td>${m.category}</td>
+              <td><code>${m.content_table}</code></td>
+              <td>${m.storage_mode}</td>
+              <td>${m.default_handler || '-'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </main>`);
+  wireHeader();
+}
+
+async function renderAudit() {
+  try {
+    const rows = await api('/audit');
+    h(header('audit') + `
+      <main>
+        <div class="card">
+          <h3 style="margin-top:0">Recent audit events</h3>
+          <table>
+            <thead><tr><th>when</th><th>table</th><th>source</th><th>action</th><th>entity_id</th></tr></thead>
+            <tbody>
+              ${rows.map(r => `<tr>
+                <td class="muted">${new Date(r.created_at).toLocaleString()}</td>
+                <td><code>${r.content_table}</code></td>
+                <td><span class="badge ${r.source === 'filesystem' ? 'active' : 'inactive'}">${r.source}</span></td>
+                <td>${r.action}</td>
+                <td class="muted"><code>${(r.entity_id||'').slice(0, 8)}…</code></td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </main>`);
+    wireHeader();
+  } catch (e) {
+    h(header('audit') + `<main><div class="card"><p>${e.message} — audit is admin-only.</p></div></main>`);
+    wireHeader();
+  }
+}
+
+function wireHeader() {
+  document.getElementById('logout').onclick = e => {
+    e.preventDefault();
+    localStorage.clear(); state.token = null; state.user = null; renderLogin();
+  };
+}
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+// ---------- router ----------
+async function route() {
+  if (!state.token) return renderLogin();
+  const hash = window.location.hash.slice(1);
+  try {
+    if (hash.startsWith('entity/')) return renderEntity(hash.slice(7));
+    if (hash === 'schemas')         return renderSchemas();
+    if (hash === 'mime')            return renderMime();
+    if (hash === 'audit')           return renderAudit();
+    return renderList();
+  } catch (e) {
+    if (e.message.includes('401')) { localStorage.clear(); state.token = null; return renderLogin('Session expired.'); }
+    h(`<main><div class="card"><pre>${e.message}</pre></div></main>`);
+  }
+}
+
+window.addEventListener('hashchange', route);
+route();
+</script>
+</body>
+</html>

@@ -1,0 +1,14 @@
+{
+  "name": "VibrationSensor-V3",
+  "device_type": "sensor",
+  "status": "active",
+  "serial_number": "VS-V3-2026-001",
+  "firmware": "4.1.0",
+  "location": {
+    "site": "Gdansk-Pier",
+    "rack": "outdoor-A",
+    "lat": 54.3520,
+    "lng": 18.6466
+  },
+  "tags": ["vibration", "outdoor", "marine"]
+}

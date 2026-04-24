@@ -1,0 +1,216 @@
+# =============================================================================
+#  PLATFORM OS  —  MIME-typed storage + reusable generator services
+#
+#  Layers:
+#   DATA     postgres                source of truth, one table per MIME
+#   SYNC     sync-engine             filesystem <-> DB, routes by MIME
+#   GATEWAY  api-gateway             CRUD + ACL + schema registry
+#   BUS      command-bus             async command execution
+#   WORKERS  worker-python, worker-php   business logic executors
+#   GENERATORS  gen-jinja (Py), gen-twig (PHP), gen-handlebars (Node)
+#                                    each reads content_* tables and renders
+#                                    HTML — fully swappable across projects
+#   UI       ui-runtime              schema-driven frontend
+#   CDN      nginx-cdn               delivery / routing
+# =============================================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: platform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-platform}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-platform}
+      POSTGRES_DB: ${POSTGRES_DB:-platform}
+    ports: ["${POSTGRES_PORT:-5432}:5432"]
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U platform -d platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [platform]
+
+  sync-engine:
+    build: ./sync-engine
+    container_name: platform-sync
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      WATCH_PATH: /data
+      MERGE_POLICY: ${MERGE_POLICY:-lww}
+    volumes:
+      - ./data:/data
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [platform]
+
+  api-gateway:
+    build: ./api-gateway
+    container_name: platform-gateway
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      JWT_SECRET: ${JWT_SECRET:-devsecret-change-me}
+      COMMAND_BUS_URL: http://command-bus:4000
+      GEN_JINJA_URL: http://gen-jinja:6001
+      GEN_TWIG_URL: http://gen-twig:6002
+      GEN_HANDLEBARS_URL: http://gen-handlebars:6003
+    ports: ["${API_PORT:-3000}:3000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [platform]
+
+  command-bus:
+    build: ./command-bus
+    container_name: platform-bus
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      WORKER_PYTHON_URL: http://worker-python:5001
+      WORKER_PHP_URL: http://worker-php:5002
+      GEN_JINJA_URL: http://gen-jinja:6001
+      GEN_TWIG_URL: http://gen-twig:6002
+      GEN_HANDLEBARS_URL: http://gen-handlebars:6003
+    ports: ["${BUS_PORT:-4000}:4000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [platform]
+
+  worker-python:
+    build: ./workers/python
+    container_name: platform-worker-python
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+    networks: [platform]
+
+  worker-php:
+    build: ./workers/php
+    container_name: platform-worker-php
+    restart: unless-stopped
+    environment:
+      DSN: "pgsql:host=postgres;port=5432;dbname=platform"
+      DB_USER: platform
+      DB_PASS: platform
+    networks: [platform]
+
+  # ---------- WEBSITE GENERATORS (each in a different technology) ----------
+  # All three read the same tables. Each declares itself in
+  # schemas.renderers, so routing is data-driven — no hard-coded dispatch.
+
+  gen-jinja:
+    build: ./generators/gen-jinja
+    container_name: platform-gen-jinja
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      RENDERER_NAME: gen-jinja
+    ports: ["${GEN_JINJA_PORT:-6001}:6001"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [platform]
+
+  gen-twig:
+    build: ./generators/gen-twig
+    container_name: platform-gen-twig
+    restart: unless-stopped
+    environment:
+      DSN: "pgsql:host=postgres;port=5432;dbname=platform"
+      DB_USER: platform
+      DB_PASS: platform
+      RENDERER_NAME: gen-twig
+    ports: ["${GEN_TWIG_PORT:-6002}:6002"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [platform]
+
+  gen-handlebars:
+    build: ./generators/gen-handlebars
+    container_name: platform-gen-handlebars
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      RENDERER_NAME: gen-handlebars
+    ports: ["${GEN_HBS_PORT:-6003}:6003"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [platform]
+
+  ui-runtime:
+    build: ./ui-runtime
+    container_name: platform-ui
+    restart: unless-stopped
+    environment:
+      API_URL: http://localhost:${API_PORT:-3000}
+      BUS_URL: http://localhost:${BUS_PORT:-4000}
+    ports: ["${UI_PORT:-5173}:80"]
+    depends_on: [api-gateway]
+    networks: [platform]
+
+  nginx-cdn:
+    image: nginx:alpine
+    container_name: platform-cdn
+    restart: unless-stopped
+    ports: ["${CDN_PORT:-8080}:80"]
+    volumes:
+      - ./cdn/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on: [api-gateway, ui-runtime, gen-jinja, gen-twig, gen-handlebars]
+    networks: [platform]
+
+  # ---------- VIRTUAL FILESYSTEMS ----------
+  # Two filesystem skins over the same content_* tables. Pick one or run both.
+
+  # WebDAV — easiest: mount over network from any OS.
+  # Linux:   sudo mount -t davfs http://localhost:8090 /mnt/vfs
+  # macOS:   mount_webdav http://localhost:8090 /Volumes/vfs
+  # Windows: map network drive to http://localhost:8090
+  vfs-webdav:
+    build: ./vfs-webdav
+    container_name: platform-vfs-webdav
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      WEBDAV_USER: ${WEBDAV_USER:-admin}
+      WEBDAV_PASS: ${WEBDAV_PASS:-admin}
+    ports: ["${WEBDAV_PORT:-8090}:8090"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [platform]
+
+  # FUSE — real Linux filesystem. Mounted inside the container at /mnt/vfs;
+  # bind-mounted to the host so other processes see it too.
+  # Requires the host kernel to have FUSE support (all Linux ≥ 2.6.14).
+  vfs-fuse:
+    build: ./vfs-fuse
+    container_name: platform-vfs-fuse
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      MOUNT_POINT: /mnt/vfs
+    privileged: true              # simplest path; tighten in prod
+    cap_add: [SYS_ADMIN]
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - type: bind
+        source: ${VFS_HOST_MOUNT:-./vfs-mount}
+        target: /mnt/vfs
+        bind: { propagation: rshared }
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["fuse"]             # opt-in: `docker compose --profile fuse up`
+    networks: [platform]
+
+volumes:
+  pg_data:
+
+networks:
+  platform:
+    driver: bridge

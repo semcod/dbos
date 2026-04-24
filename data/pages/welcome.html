@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ title }} — Platform</title>
+  <style>body { font-family: system-ui, sans-serif; max-width: 720px; margin: 40px auto; padding: 0 16px; }</style>
+</head>
+<body>
+  <header><h1>{{ title }}</h1></header>
+  <main>
+    {% if body %}{{ body|raw }}{% endif %}
+    {% if name %}<p>Hello, <strong>{{ name }}</strong>.</p>{% endif %}
+  </main>
+  <footer><small>Rendered by {{ renderer }} at {{ rendered_at }}</small></footer>
+</body>
+</html>

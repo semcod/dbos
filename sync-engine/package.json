@@ -1,0 +1,16 @@
+{
+  "name": "sync-engine",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Filesystem -> correct content_* table, routed by MIME",
+  "main": "src/index.js",
+  "scripts": { "start": "node src/index.js" },
+  "dependencies": {
+    "chokidar": "^3.6.0",
+    "fast-json-patch": "^3.1.1",
+    "fast-xml-parser": "^4.3.4",
+    "gray-matter": "^4.0.3",
+    "js-yaml": "^4.1.0",
+    "pg": "^8.11.3"
+  }
+}

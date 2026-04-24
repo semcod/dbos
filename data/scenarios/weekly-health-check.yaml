@@ -1,0 +1,30 @@
+# Weekly health check scenario
+# Sync-engine preserves this comment in content_yaml.raw_text
+name: Weekly device health check
+status: active
+schedule: "0 6 * * MON"
+goals:
+  - id: G1
+    desc: Verify every active sensor responds
+  - id: G2
+    desc: Flag anything with firmware older than 12 months
+
+steps:
+  - id: S1
+    type: setup
+    params:
+      filter:
+        status: active
+        device_type: sensor
+  - id: S2
+    type: action
+    params:
+      command: ping_device
+  - id: S3
+    type: assert
+    params:
+      expect: responsive
+  - id: S4
+    type: action
+    params:
+      command: firmware_audit

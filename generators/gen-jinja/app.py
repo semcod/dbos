@@ -18,6 +18,7 @@ from datetime import datetime, timezone
 
 import psycopg
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from jinja2 import Environment, BaseLoader, select_autoescape
 import markdown as md_lib
 
@@ -25,6 +26,14 @@ DATABASE_URL  = os.environ["DATABASE_URL"]
 RENDERER_NAME = os.environ.get("RENDERER_NAME", "gen-jinja")
 
 app = FastAPI(title="gen-jinja", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 env = Environment(
     loader=BaseLoader(),
@@ -148,7 +157,7 @@ def render(external_id: str):
             INSERT INTO audit_log
               (content_table, entity_id, content_id, source, action, after_state)
             VALUES ('content_html', %s, %s, 'generator', 'render',
-                    jsonb_build_object('renderer', %s, 'bytes', %s))
+                    jsonb_build_object('renderer', %s::text, 'bytes', %s::int))
             """,
             (entity_id, html_id, RENDERER_NAME, len(rendered)),
         )

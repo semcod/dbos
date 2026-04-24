@@ -1,0 +1,563 @@
+project: /home/tom/github/semcod/dbos
+generated_from: code2llm call graph analysis
+stats:
+  total_nodes: 37
+  total_edges: 29
+  modules_count: 8
+nodes:
+  workers.python.worker.handle_change_device_status:
+    name: handle_change_device_status
+    module: workers.python.worker
+    line: 98
+    cyclomatic_complexity: 4
+    calls_out: 21
+    calls_in: 0
+  vfs-webdav.app.EntityFile._persist:
+    name: _persist
+    module: vfs-webdav.app
+    line: 168
+    cyclomatic_complexity: 9
+    calls_out: 21
+    calls_in: 0
+  api-gateway.src.check:
+    name: check
+    module: api-gateway.src
+    line: 54
+    cyclomatic_complexity: 1
+    calls_out: 0
+    calls_in: 1
+  sync-engine.src.pathWithoutExt:
+    name: pathWithoutExt
+    module: sync-engine.src
+    line: 254
+    cyclomatic_complexity: 2
+    calls_out: 5
+    calls_in: 0
+  vfs-webdav.app.RootCollection.__init__:
+    name: __init__
+    module: vfs-webdav.app
+    line: 305
+    cyclomatic_complexity: 1
+    calls_out: 3
+    calls_in: 0
+  generators.gen-handlebars.src.rendered:
+    name: rendered
+    module: generators.gen-handlebars.src
+    line: 86
+    cyclomatic_complexity: 1
+    calls_out: 3
+    calls_in: 0
+  sync-engine.src.parse:
+    name: parse
+    module: sync-engine.src
+    line: 79
+    cyclomatic_complexity: 40
+    calls_out: 47
+    calls_in: 4
+  sync-engine.src.external_id:
+    name: external_id
+    module: sync-engine.src
+    line: 255
+    cyclomatic_complexity: 2
+    calls_out: 5
+    calls_in: 0
+  vfs-fuse.fuse_fs.PlatformFS._load_payload:
+    name: _load_payload
+    module: vfs-fuse.fuse_fs
+    line: 99
+    cyclomatic_complexity: 6
+    calls_out: 8
+    calls_in: 0
+  sync-engine.src.client:
+    name: client
+    module: sync-engine.src
+    line: 136
+    cyclomatic_complexity: 16
+    calls_out: 20
+    calls_in: 0
+  vfs-fuse.fuse_fs.PlatformFS.unlink:
+    name: unlink
+    module: vfs-fuse.fuse_fs
+    line: 234
+    cyclomatic_complexity: 2
+    calls_out: 7
+    calls_in: 0
+  sync-engine.src.handleFile:
+    name: handleFile
+    module: sync-engine.src
+    line: 235
+    cyclomatic_complexity: 4
+    calls_out: 12
+    calls_in: 0
+  vfs-webdav.app.db:
+    name: db
+    module: vfs-webdav.app
+    line: 59
+    cyclomatic_complexity: 1
+    calls_out: 1
+    calls_in: 1
+  vfs-webdav.app.EntityFile.delete:
+    name: delete
+    module: vfs-webdav.app
+    line: 261
+    cyclomatic_complexity: 1
+    calls_out: 4
+    calls_in: 0
+  api-gateway.src.validate:
+    name: validate
+    module: api-gateway.src
+    line: 51
+    cyclomatic_complexity: 2
+    calls_out: 3
+    calls_in: 0
+  generators.gen-jinja.app.capabilities:
+    name: capabilities
+    module: generators.gen-jinja.app
+    line: 76
+    cyclomatic_complexity: 2
+    calls_out: 5
+    calls_in: 0
+  workers.python.worker.db:
+    name: db
+    module: workers.python.worker
+    line: 33
+    cyclomatic_complexity: 1
+    calls_out: 1
+    calls_in: 2
+  vfs-fuse.fuse_fs.PlatformFS._list_dir:
+    name: _list_dir
+    module: vfs-fuse.fuse_fs
+    line: 124
+    cyclomatic_complexity: 3
+    calls_out: 5
+    calls_in: 0
+  vfs-fuse.fuse_fs.PlatformFS._persist:
+    name: _persist
+    module: vfs-fuse.fuse_fs
+    line: 252
+    cyclomatic_complexity: 11
+    calls_out: 25
+    calls_in: 0
+  generators.gen-handlebars.src.client:
+    name: client
+    module: generators.gen-handlebars.src
+    line: 61
+    cyclomatic_complexity: 7
+    calls_out: 15
+    calls_in: 0
+  vfs-webdav.app.EntityFolder.get_member_names:
+    name: get_member_names
+    module: vfs-webdav.app
+    line: 282
+    cyclomatic_complexity: 2
+    calls_out: 4
+    calls_in: 0
+  vfs-webdav.app.EntityFile._load:
+    name: _load
+    module: vfs-webdav.app
+    line: 101
+    cyclomatic_complexity: 7
+    calls_out: 8
+    calls_in: 0
+  vfs-fuse.fuse_fs.db:
+    name: db
+    module: vfs-fuse.fuse_fs
+    line: 47
+    cyclomatic_complexity: 1
+    calls_out: 1
+    calls_in: 10
+  generators.gen-handlebars.src.template:
+    name: template
+    module: generators.gen-handlebars.src
+    line: 85
+    cyclomatic_complexity: 1
+    calls_out: 2
+    calls_in: 2
+  workers.php.worker.db:
+    name: db
+    module: workers.php.worker
+    line: 11
+    cyclomatic_complexity: 2
+    calls_out: 1
+    calls_in: 1
+  generators.gen-jinja.app.render:
+    name: render
+    module: generators.gen-jinja.app
+    line: 91
+    cyclomatic_complexity: 4
+    calls_out: 28
+    calls_in: 0
+  sync-engine.src.upsertEntity:
+    name: upsertEntity
+    module: sync-engine.src
+    line: 135
+    cyclomatic_complexity: 16
+    calls_out: 21
+    calls_in: 5
+  vfs-fuse.fuse_fs.main:
+    name: main
+    module: vfs-fuse.fuse_fs
+    line: 347
+    cyclomatic_complexity: 3
+    calls_out: 10
+    calls_in: 0
+  sync-engine.src.main:
+    name: main
+    module: sync-engine.src
+    line: 272
+    cyclomatic_complexity: 5
+    calls_out: 7
+    calls_in: 2
+  sync-engine.src.loadMimeRegistry:
+    name: loadMimeRegistry
+    module: sync-engine.src
+    line: 65
+    cyclomatic_complexity: 1
+    calls_out: 4
+    calls_in: 3
+  generators.gen-jinja.app.db:
+    name: db
+    module: generators.gen-jinja.app
+    line: 66
+    cyclomatic_complexity: 1
+    calls_out: 1
+    calls_in: 3
+  generators.gen-jinja.app.preview:
+    name: preview
+    module: generators.gen-jinja.app
+    line: 175
+    cyclomatic_complexity: 3
+    calls_out: 12
+    calls_in: 0
+  sync-engine.src.sha256:
+    name: sha256
+    module: sync-engine.src
+    line: 72
+    cyclomatic_complexity: 1
+    calls_out: 3
+    calls_in: 4
+  workers.python.worker.handle_create_device:
+    name: handle_create_device
+    module: workers.python.worker
+    line: 45
+    cyclomatic_complexity: 3
+    calls_out: 27
+    calls_in: 0
+  workers.php.worker.handle_render_report:
+    name: handle_render_report
+    module: workers.php.worker
+    line: 77
+    cyclomatic_complexity: 3
+    calls_out: 6
+    calls_in: 0
+  vfs-webdav.app.load_directory_layout:
+    name: load_directory_layout
+    module: vfs-webdav.app
+    line: 67
+    cyclomatic_complexity: 3
+    calls_out: 6
+    calls_in: 1
+  vfs-fuse.fuse_fs.PlatformFS.layout:
+    name: layout
+    module: vfs-fuse.fuse_fs
+    line: 68
+    cyclomatic_complexity: 5
+    calls_out: 8
+    calls_in: 0
+edges:
+- caller: vfs-fuse.fuse_fs.PlatformFS.layout
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-fuse.fuse_fs.PlatformFS._load_payload
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-fuse.fuse_fs.PlatformFS._list_dir
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-fuse.fuse_fs.PlatformFS.unlink
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-fuse.fuse_fs.PlatformFS._persist
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-fuse.fuse_fs.main
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-webdav.app.load_directory_layout
+  callee: vfs-webdav.app.db
+  call_type: resolved
+- caller: vfs-webdav.app.EntityFile._load
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-webdav.app.EntityFile._persist
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-webdav.app.EntityFile.delete
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-webdav.app.EntityFolder.get_member_names
+  callee: vfs-fuse.fuse_fs.db
+  call_type: resolved
+- caller: vfs-webdav.app.RootCollection.__init__
+  callee: vfs-webdav.app.load_directory_layout
+  call_type: resolved
+- caller: workers.php.worker.handle_render_report
+  callee: workers.php.worker.db
+  call_type: resolved
+- caller: workers.python.worker.handle_create_device
+  callee: workers.python.worker.db
+  call_type: resolved
+- caller: workers.python.worker.handle_change_device_status
+  callee: workers.python.worker.db
+  call_type: resolved
+- caller: api-gateway.src.validate
+  callee: api-gateway.src.check
+  call_type: resolved
+- caller: generators.gen-handlebars.src.client
+  callee: generators.gen-handlebars.src.template
+  call_type: resolved
+- caller: generators.gen-handlebars.src.rendered
+  callee: generators.gen-handlebars.src.template
+  call_type: resolved
+- caller: generators.gen-jinja.app.capabilities
+  callee: generators.gen-jinja.app.db
+  call_type: resolved
+- caller: generators.gen-jinja.app.render
+  callee: generators.gen-jinja.app.db
+  call_type: resolved
+- caller: generators.gen-jinja.app.preview
+  callee: generators.gen-jinja.app.db
+  call_type: resolved
+- caller: sync-engine.src.upsertEntity
+  callee: sync-engine.src.sha256
+  call_type: resolved
+- caller: sync-engine.src.client
+  callee: sync-engine.src.sha256
+  call_type: resolved
+- caller: sync-engine.src.handleFile
+  callee: sync-engine.src.parse
+  call_type: resolved
+- caller: sync-engine.src.pathWithoutExt
+  callee: sync-engine.src.parse
+  call_type: resolved
+- caller: sync-engine.src.pathWithoutExt
+  callee: sync-engine.src.upsertEntity
+  call_type: resolved
+- caller: sync-engine.src.external_id
+  callee: sync-engine.src.parse
+  call_type: resolved
+- caller: sync-engine.src.external_id
+  callee: sync-engine.src.upsertEntity
+  call_type: resolved
+- caller: sync-engine.src.main
+  callee: sync-engine.src.loadMimeRegistry
+  call_type: resolved
+modules:
+  api-gateway.src:
+  - api-gateway.src.check
+  - api-gateway.src.validate
+  generators.gen-handlebars.src:
+  - generators.gen-handlebars.src.client
+  - generators.gen-handlebars.src.rendered
+  - generators.gen-handlebars.src.template
+  generators.gen-jinja.app:
+  - generators.gen-jinja.app.capabilities
+  - generators.gen-jinja.app.db
+  - generators.gen-jinja.app.preview
+  - generators.gen-jinja.app.render
+  sync-engine.src:
+  - sync-engine.src.client
+  - sync-engine.src.external_id
+  - sync-engine.src.handleFile
+  - sync-engine.src.loadMimeRegistry
+  - sync-engine.src.main
+  - sync-engine.src.parse
+  - sync-engine.src.pathWithoutExt
+  - sync-engine.src.sha256
+  - sync-engine.src.upsertEntity
+  vfs-fuse.fuse_fs:
+  - vfs-fuse.fuse_fs.PlatformFS._list_dir
+  - vfs-fuse.fuse_fs.PlatformFS._load_payload
+  - vfs-fuse.fuse_fs.PlatformFS._persist
+  - vfs-fuse.fuse_fs.PlatformFS.layout
+  - vfs-fuse.fuse_fs.PlatformFS.unlink
+  - vfs-fuse.fuse_fs.db
+  - vfs-fuse.fuse_fs.main
+  vfs-webdav.app:
+  - vfs-webdav.app.EntityFile._load
+  - vfs-webdav.app.EntityFile._persist
+  - vfs-webdav.app.EntityFile.delete
+  - vfs-webdav.app.EntityFolder.get_member_names
+  - vfs-webdav.app.RootCollection.__init__
+  - vfs-webdav.app.db
+  - vfs-webdav.app.load_directory_layout
+  workers.php.worker:
+  - workers.php.worker.db
+  - workers.php.worker.handle_render_report
+  workers.python.worker:
+  - workers.python.worker.db
+  - workers.python.worker.handle_change_device_status
+  - workers.python.worker.handle_create_device
+entry_points:
+- README.UNIQUE
+- SUMD.build_app
+- SUMD.capabilities
+- SUMD.db
+- SUMD.execute
+- SUMD.handle_change_device_status
+- SUMD.handle_create_device
+- SUMD.handle_render_article
+- SUMD.health
+- SUMD.load_directory_layout
+- SUMD.main
+- SUMD.preview
+- SUMD.render
+- api-gateway.src.ajv
+- api-gateway.src.app
+- api-gateway.src.auth
+- api-gateway.src.body
+- api-gateway.src.canAccess
+- api-gateway.src.checksum
+- api-gateway.src.client
+- api-gateway.src.content
+- api-gateway.src.contentTable
+- api-gateway.src.decodeExternalId
+- api-gateway.src.decodedId
+- api-gateway.src.def
+- api-gateway.src.e
+- api-gateway.src.entityId
+- api-gateway.src.h
+- api-gateway.src.limit
+- api-gateway.src.loadCaches
+- api-gateway.src.loadEntity
+- api-gateway.src.loaded
+- api-gateway.src.m
+- api-gateway.src.mime
+- api-gateway.src.mimeCache
+- api-gateway.src.offset
+- api-gateway.src.orderBy
+- api-gateway.src.pool
+- api-gateway.src.r
+- api-gateway.src.s
+- api-gateway.src.schemaCache
+- api-gateway.src.spec
+- api-gateway.src.table
+- api-gateway.src.token
+- api-gateway.src.u
+- api-gateway.src.updated
+- api-gateway.src.v
+- api-gateway.src.validate
+- command-bus.src.app
+- command-bus.src.commandId
+- command-bus.src.pool
+- command-bus.src.resolveRuntime
+- command-bus.src.result
+- command-bus.src.runtime
+- command-bus.src.runtimeUrl
+- command-bus.src.targetUrl
+- command-bus.src.workerResp
+- generators.gen-handlebars.src.app
+- generators.gen-handlebars.src.checksum
+- generators.gen-handlebars.src.client
+- generators.gen-handlebars.src.html
+- generators.gen-handlebars.src.pool
+- generators.gen-handlebars.src.rendered
+- generators.gen-handlebars.src.templateSrc
+- generators.gen-jinja.app.capabilities
+- generators.gen-jinja.app.health
+- generators.gen-jinja.app.preview
+- generators.gen-jinja.app.render
+- generators.gen-twig.index.db
+- generators.gen-twig.index.json_out
+- project.map.toon.build_app
+- project.map.toon.capabilities
+- project.map.toon.db
+- project.map.toon.execute
+- project.map.toon.handle_change_device_status
+- project.map.toon.handle_create_device
+- project.map.toon.handle_render_article
+- project.map.toon.health
+- project.map.toon.load_directory_layout
+- project.map.toon.main
+- project.map.toon.preview
+- project.map.toon.render
+- sync-engine.src.body
+- sync-engine.src.buf
+- sync-engine.src.checksum
+- sync-engine.src.checksumBase
+- sync-engine.src.client
+- sync-engine.src.dir
+- sync-engine.src.dirMap
+- sync-engine.src.entityId
+- sync-engine.src.ext
+- sync-engine.src.external_id
+- sync-engine.src.fm
+- sync-engine.src.handleFile
+- sync-engine.src.mime
+- sync-engine.src.mimeRegistry
+- sync-engine.src.parsed
+- sync-engine.src.parser
+- sync-engine.src.parts
+- sync-engine.src.pathWithoutExt
+- sync-engine.src.pool
+- sync-engine.src.rel
+- sync-engine.src.root
+- sync-engine.src.text
+- vfs-fuse.SUMD.db
+- vfs-fuse.SUMD.main
+- vfs-fuse.fuse_fs.PlatformFS.__init__
+- vfs-fuse.fuse_fs.PlatformFS._list_dir
+- vfs-fuse.fuse_fs.PlatformFS._load_payload
+- vfs-fuse.fuse_fs.PlatformFS._persist
+- vfs-fuse.fuse_fs.PlatformFS._split
+- vfs-fuse.fuse_fs.PlatformFS.create
+- vfs-fuse.fuse_fs.PlatformFS.flush
+- vfs-fuse.fuse_fs.PlatformFS.getattr
+- vfs-fuse.fuse_fs.PlatformFS.layout
+- vfs-fuse.fuse_fs.PlatformFS.open
+- vfs-fuse.fuse_fs.PlatformFS.read
+- vfs-fuse.fuse_fs.PlatformFS.readdir
+- vfs-fuse.fuse_fs.PlatformFS.release
+- vfs-fuse.fuse_fs.PlatformFS.truncate
+- vfs-fuse.fuse_fs.PlatformFS.unlink
+- vfs-fuse.fuse_fs.PlatformFS.write
+- vfs-fuse.fuse_fs.main
+- vfs-fuse.project.map.toon.db
+- vfs-fuse.project.map.toon.main
+- vfs-webdav.SUMD.build_app
+- vfs-webdav.SUMD.db
+- vfs-webdav.SUMD.load_directory_layout
+- vfs-webdav.app.EntityFile.__init__
+- vfs-webdav.app.EntityFile._load
+- vfs-webdav.app.EntityFile._persist
+- vfs-webdav.app.EntityFile.begin_write
+- vfs-webdav.app.EntityFile.delete
+- vfs-webdav.app.EntityFile.end_write
+- vfs-webdav.app.EntityFile.get_content
+- vfs-webdav.app.EntityFile.get_content_length
+- vfs-webdav.app.EntityFile.get_content_type
+- vfs-webdav.app.EntityFile.get_display_name
+- vfs-webdav.app.EntityFile.get_etag
+- vfs-webdav.app.EntityFile.get_last_modified
+- vfs-webdav.app.EntityFile.support_etag
+- vfs-webdav.app.EntityFile.support_ranges
+- vfs-webdav.app.EntityFolder.__init__
+- vfs-webdav.app.EntityFolder.get_member
+- vfs-webdav.app.EntityFolder.get_member_names
+- vfs-webdav.app.EntityFolder.support_recursive_delete
+- vfs-webdav.app.PlatformProvider.get_resource_inst
+- vfs-webdav.app.RootCollection.__init__
+- vfs-webdav.app.RootCollection.get_member
+- vfs-webdav.app.RootCollection.get_member_names
+- vfs-webdav.app.build_app
+- vfs-webdav.project.map.toon.build_app
+- vfs-webdav.project.map.toon.db
+- vfs-webdav.project.map.toon.load_directory_layout
+- workers.php.worker.handle_render_page
+- workers.php.worker.handle_render_report
+- workers.php.worker.json_out
+- workers.python.worker.execute
+- workers.python.worker.handle_change_device_status
+- workers.python.worker.handle_create_device
+- workers.python.worker.handle_render_article
+- workers.python.worker.health

@@ -1,0 +1,246 @@
+flowchart TD
+    subgraph README
+        README__UNIQUE["UNIQUE"]
+    end
+    subgraph SUMD
+        SUMD__db["db"]
+        SUMD__health["health"]
+        SUMD__capabilities["capabilities"]
+        SUMD__render["render"]
+        SUMD__preview["preview"]
+        SUMD__main["main"]
+        SUMD__load_directory_layout["load_directory_layout"]
+        SUMD__build_app["build_app"]
+        SUMD__handle_create_device["handle_create_device"]
+        SUMD__handle_change_device_status["handle_change_device_status"]
+        SUMD__handle_render_article["handle_render_article"]
+        SUMD__execute["execute"]
+    end
+    subgraph api_gateway__src
+        api_gateway__src__pool["pool"]
+        api_gateway__src__ajv["ajv"]
+        api_gateway__src__decodeExternalId["decodeExternalId"]
+        api_gateway__src__schemaCache["schemaCache"]
+        api_gateway__src__mimeCache["mimeCache"]
+        api_gateway__src__loadCaches["loadCaches"]
+        api_gateway__src__s["s"]
+        api_gateway__src__m["m"]
+        api_gateway__src__validate["validate"]
+        api_gateway__src__def["def"]
+        api_gateway__src__check["check"]
+        api_gateway__src__canAccess["canAccess"]
+        api_gateway__src__auth["auth"]
+        api_gateway__src__h["h"]
+        api_gateway__src__loadEntity["loadEntity"]
+        api_gateway__src__e["e"]
+        api_gateway__src__mime["mime"]
+        api_gateway__src__contentTable["contentTable"]
+        api_gateway__src__orderBy["orderBy"]
+        api_gateway__src__content["content"]
+        api_gateway__src__app["app"]
+        api_gateway__src__u["u"]
+        api_gateway__src__token["token"]
+        api_gateway__src__limit["limit"]
+        api_gateway__src__offset["offset"]
+        api_gateway__src__decodedId["decodedId"]
+        api_gateway__src__loaded["loaded"]
+        api_gateway__src__client{{client CC=15}}
+        api_gateway__src__checksum("checksum CC=11")
+        api_gateway__src__spec["spec"]
+        api_gateway__src__updated["updated"]
+        api_gateway__src__table["table"]
+        api_gateway__src__v["v"]
+        api_gateway__src__entityId("entityId CC=11")
+        api_gateway__src__r["r"]
+        api_gateway__src__body["body"]
+    end
+    subgraph command_bus__src
+        command_bus__src__pool["pool"]
+        command_bus__src__resolveRuntime["resolveRuntime"]
+        command_bus__src__runtimeUrl["runtimeUrl"]
+        command_bus__src__app["app"]
+        command_bus__src__runtime["runtime"]
+        command_bus__src__commandId["commandId"]
+        command_bus__src__targetUrl["targetUrl"]
+        command_bus__src__workerResp["workerResp"]
+        command_bus__src__result["result"]
+    end
+    subgraph generators__gen_handlebars
+        generators__gen_handlebars__src__pool["pool"]
+        generators__gen_handlebars__src__app["app"]
+        generators__gen_handlebars__src__client["client"]
+        generators__gen_handlebars__src__templateSrc["templateSrc"]
+        generators__gen_handlebars__src__template["template"]
+        generators__gen_handlebars__src__rendered["rendered"]
+        generators__gen_handlebars__src__checksum["checksum"]
+        generators__gen_handlebars__src__html["html"]
+    end
+    subgraph generators__gen_jinja
+        generators__gen_jinja__app__db["db"]
+        generators__gen_jinja__app__health["health"]
+        generators__gen_jinja__app__capabilities["capabilities"]
+        generators__gen_jinja__app__render["render"]
+        generators__gen_jinja__app__preview["preview"]
+    end
+    subgraph generators__gen_twig
+        generators__gen_twig__index__db["db"]
+        generators__gen_twig__index__json_out["json_out"]
+    end
+    subgraph project__map
+        project__map__toon__db["db"]
+        project__map__toon__health["health"]
+        project__map__toon__capabilities["capabilities"]
+        project__map__toon__render["render"]
+        project__map__toon__preview["preview"]
+        project__map__toon__main["main"]
+        project__map__toon__load_directory_layout["load_directory_layout"]
+        project__map__toon__build_app["build_app"]
+        project__map__toon__handle_create_device["handle_create_device"]
+        project__map__toon__handle_change_device_status["handle_change_device_status"]
+        project__map__toon__handle_render_article["handle_render_article"]
+        project__map__toon__execute["execute"]
+    end
+    subgraph sync_engine__src
+        sync_engine__src__pool["pool"]
+        sync_engine__src__mimeRegistry["mimeRegistry"]
+        sync_engine__src__loadMimeRegistry["loadMimeRegistry"]
+        sync_engine__src__sha256["sha256"]
+        sync_engine__src__parse{{parse CC=40}}
+        sync_engine__src__parser["parser"]
+        sync_engine__src__parsed["parsed"]
+        sync_engine__src__root["root"]
+        sync_engine__src__body{{body CC=32}}
+        sync_engine__src__text["text"]
+        sync_engine__src__fm["fm"]
+        sync_engine__src__upsertEntity{{upsertEntity CC=16}}
+        sync_engine__src__client{{client CC=16}}
+        sync_engine__src__entityId("entityId CC=8")
+        sync_engine__src__checksumBase("checksumBase CC=8")
+        sync_engine__src__checksum("checksum CC=8")
+        sync_engine__src__handleFile["handleFile"]
+        sync_engine__src__rel["rel"]
+        sync_engine__src__parts["parts"]
+        sync_engine__src__dir["dir"]
+        sync_engine__src__dirMap["dirMap"]
+        sync_engine__src__ext["ext"]
+        sync_engine__src__mime["mime"]
+        sync_engine__src__pathWithoutExt["pathWithoutExt"]
+        sync_engine__src__external_id["external_id"]
+        sync_engine__src__buf["buf"]
+        sync_engine__src__main["main"]
+    end
+    subgraph vfs_fuse__SUMD
+        vfs_fuse__SUMD__db["db"]
+        vfs_fuse__SUMD__main["main"]
+    end
+    subgraph vfs_fuse__fuse_fs
+        vfs_fuse__fuse_fs__db["db"]
+        vfs_fuse__fuse_fs__PlatformFS____init__["__init__"]
+        vfs_fuse__fuse_fs__PlatformFS__layout["layout"]
+        vfs_fuse__fuse_fs__PlatformFS___split["_split"]
+        vfs_fuse__fuse_fs__PlatformFS___load_payload["_load_payload"]
+        vfs_fuse__fuse_fs__PlatformFS___list_dir["_list_dir"]
+        vfs_fuse__fuse_fs__PlatformFS__getattr("getattr CC=10")
+        vfs_fuse__fuse_fs__PlatformFS__readdir["readdir"]
+        vfs_fuse__fuse_fs__PlatformFS__open["open"]
+        vfs_fuse__fuse_fs__PlatformFS__create["create"]
+        vfs_fuse__fuse_fs__PlatformFS__read["read"]
+        vfs_fuse__fuse_fs__PlatformFS__write["write"]
+        vfs_fuse__fuse_fs__PlatformFS__truncate["truncate"]
+        vfs_fuse__fuse_fs__PlatformFS__flush["flush"]
+        vfs_fuse__fuse_fs__PlatformFS__release["release"]
+        vfs_fuse__fuse_fs__PlatformFS__unlink["unlink"]
+        vfs_fuse__fuse_fs__PlatformFS___persist("_persist CC=11")
+        vfs_fuse__fuse_fs__main["main"]
+    end
+    subgraph vfs_fuse__project
+        vfs_fuse__project__map__toon__db["db"]
+        vfs_fuse__project__map__toon__main["main"]
+    end
+    subgraph vfs_webdav__SUMD
+        vfs_webdav__SUMD__db["db"]
+        vfs_webdav__SUMD__load_directory_layout["load_directory_layout"]
+        vfs_webdav__SUMD__build_app["build_app"]
+    end
+    subgraph vfs_webdav__app
+        vfs_webdav__app__db["db"]
+        vfs_webdav__app__load_directory_layout["load_directory_layout"]
+        vfs_webdav__app__EntityFile____init__["__init__"]
+        vfs_webdav__app__EntityFile___load["_load"]
+        vfs_webdav__app__EntityFile__get_content_length["get_content_length"]
+        vfs_webdav__app__EntityFile__get_content_type["get_content_type"]
+        vfs_webdav__app__EntityFile__get_display_name["get_display_name"]
+        vfs_webdav__app__EntityFile__get_etag["get_etag"]
+        vfs_webdav__app__EntityFile__support_etag["support_etag"]
+        vfs_webdav__app__EntityFile__get_last_modified["get_last_modified"]
+        vfs_webdav__app__EntityFile__support_ranges["support_ranges"]
+        vfs_webdav__app__EntityFile__get_content["get_content"]
+        vfs_webdav__app__EntityFile__begin_write["begin_write"]
+        vfs_webdav__app__EntityFile__end_write["end_write"]
+        vfs_webdav__app__EntityFile___persist("_persist CC=9")
+        vfs_webdav__app__EntityFile__delete["delete"]
+        vfs_webdav__app__EntityFolder____init__["__init__"]
+        vfs_webdav__app__EntityFolder__get_member_names["get_member_names"]
+        vfs_webdav__app__EntityFolder__get_member["get_member"]
+        vfs_webdav__app__EntityFolder__support_recursive_delete["support_recursive_delete"]
+        vfs_webdav__app__RootCollection____init__["__init__"]
+        vfs_webdav__app__RootCollection__get_member_names["get_member_names"]
+        vfs_webdav__app__RootCollection__get_member["get_member"]
+        vfs_webdav__app__PlatformProvider__get_resource_inst["get_resource_inst"]
+        vfs_webdav__app__build_app["build_app"]
+    end
+    subgraph vfs_webdav__project
+        vfs_webdav__project__map__toon__db["db"]
+        vfs_webdav__project__map__toon__load_directory_layout["load_directory_layout"]
+        vfs_webdav__project__map__toon__build_app["build_app"]
+    end
+    subgraph workers__php
+        workers__php__worker__db["db"]
+        workers__php__worker__json_out["json_out"]
+        workers__php__worker__handle_render_page["handle_render_page"]
+        workers__php__worker__handle_render_report["handle_render_report"]
+    end
+    subgraph workers__python
+        workers__python__worker__db["db"]
+        workers__python__worker__health["health"]
+        workers__python__worker__handle_create_device["handle_create_device"]
+        workers__python__worker__handle_change_device_status["handle_change_device_status"]
+        workers__python__worker__handle_render_article["handle_render_article"]
+        workers__python__worker__execute["execute"]
+    end
+    vfs_fuse__fuse_fs__PlatformFS__layout --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS___load_payload --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS___list_dir --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS__unlink --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS___persist --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__main --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__load_directory_layout --> vfs_webdav__app__db
+    vfs_webdav__app__EntityFile___load --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__EntityFile___persist --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__EntityFile__delete --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__EntityFolder__get_member_names --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__RootCollection____init__ --> vfs_webdav__app__load_directory_layout
+    workers__php__worker__handle_render_report --> workers__php__worker__db
+    workers__python__worker__handle_create_device --> workers__python__worker__db
+    workers__python__worker__handle_change_device_status --> workers__python__worker__db
+    api_gateway__src__validate --> api_gateway__src__check
+    generators__gen_handlebars__src__client --> generators__gen_handlebars__src__template
+    generators__gen_handlebars__src__rendered --> generators__gen_handlebars__src__template
+    generators__gen_jinja__app__capabilities --> generators__gen_jinja__app__db
+    generators__gen_jinja__app__render --> generators__gen_jinja__app__db
+    generators__gen_jinja__app__preview --> generators__gen_jinja__app__db
+    sync_engine__src__body --> sync_engine__src__sha256
+    sync_engine__src__upsertEntity --> sync_engine__src__sha256
+    sync_engine__src__client --> sync_engine__src__sha256
+    sync_engine__src__handleFile --> sync_engine__src__parse
+    sync_engine__src__handleFile --> sync_engine__src__upsertEntity
+    sync_engine__src__pathWithoutExt --> sync_engine__src__parse
+    sync_engine__src__pathWithoutExt --> sync_engine__src__upsertEntity
+    sync_engine__src__external_id --> sync_engine__src__parse
+    sync_engine__src__external_id --> sync_engine__src__upsertEntity
+    sync_engine__src__main --> sync_engine__src__loadMimeRegistry
+
+    classDef highCC fill:#ff6b6b,stroke:#c92a2a,color:#fff
+    classDef medCC fill:#ffd43b,stroke:#f08c00,color:#000
+    class api_gateway__src__client,sync_engine__src__parse,sync_engine__src__body,sync_engine__src__upsertEntity,sync_engine__src__client highCC
+    class vfs_fuse__fuse_fs__PlatformFS__getattr,vfs_fuse__fuse_fs__PlatformFS___persist,vfs_webdav__app__EntityFile___persist,api_gateway__src__checksum,api_gateway__src__entityId,sync_engine__src__entityId,sync_engine__src__checksumBase,sync_engine__src__checksum medCC

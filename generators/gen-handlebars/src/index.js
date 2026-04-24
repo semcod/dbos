@@ -44,6 +44,7 @@ Handlebars.registerHelper('isObject', v =>
 // ---- app ----
 const app = express();
 app.use(express.json());
+app.use(cors());
 
 app.get('/health', (_req, res) =>
   res.json({ ok: true, service: RENDERER_NAME }));

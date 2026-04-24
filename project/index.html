@@ -1,0 +1,623 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>code2llm Analysis Results</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/json.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/languages/yaml.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --surface: #1e293b;
+            --surface-hover: #334155;
+            --border: #475569;
+            --text: #e2e8f0;
+            --text-muted: #94a3b8;
+            --accent: #3b82f6;
+            --accent-hover: #2563eb;
+            --success: #22c55e;
+            --warning: #eab308;
+            --error: #ef4444;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: #f8fafc;
+                --surface: #ffffff;
+                --surface-hover: #f1f5f9;
+                --border: #e2e8f0;
+                --text: #1e293b;
+                --text-muted: #64748b;
+            }
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 320px 1fr;
+            height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .header {
+            padding: 1.25rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header p {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .search {
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .search input {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: 0.375rem;
+            color: var(--text);
+            font-size: 0.875rem;
+            outline: none;
+        }
+
+        .search input:focus {
+            border-color: var(--accent);
+        }
+
+        .search input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .file-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+
+        .file-group {
+            margin-bottom: 1rem;
+        }
+
+        .file-group-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            padding: 0.5rem 0.75rem;
+            font-weight: 600;
+        }
+
+        .file-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.625rem 0.75rem;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            margin-bottom: 0.125rem;
+        }
+
+        .file-item:hover {
+            background: var(--surface-hover);
+        }
+
+        .file-item.active {
+            background: var(--accent);
+            color: white;
+        }
+
+        .file-item.active .file-meta {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .file-icon {
+            font-size: 1.25rem;
+            flex-shrink: 0;
+        }
+
+        .file-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .file-name {
+            font-size: 0.875rem;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .file-size {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            flex-shrink: 0;
+        }
+
+        /* Content */
+        .content {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .content-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            background: var(--surface);
+        }
+
+        .content-title {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .content-title h2 {
+            font-size: 1.125rem;
+            font-weight: 600;
+        }
+
+        .content-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.375rem;
+            padding: 0.5rem 1rem;
+            background: var(--surface-hover);
+            color: var(--text);
+            text-decoration: none;
+            border-radius: 0.375rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: var(--border);
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+        }
+
+        .content-body {
+            flex: 1;
+            overflow: auto;
+            padding: 1.5rem;
+        }
+
+        /* Welcome */
+        .welcome {
+            max-width: 800px;
+        }
+
+        .welcome h2 {
+            font-size: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .welcome p {
+            color: var(--text-muted);
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        .stat-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        /* Content Display */
+        pre {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+            font-size: 0.875rem;
+            line-height: 1.6;
+        }
+
+        code {
+            font-family: 'Fira Code', 'Monaco', 'Consolas', monospace;
+        }
+
+        .markdown-content {
+            line-height: 1.7;
+        }
+
+        .markdown-content h1,
+        .markdown-content h2,
+        .markdown-content h3 {
+            margin-top: 1.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .markdown-content h1 {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+        }
+
+        .markdown-content p {
+            margin-bottom: 1rem;
+        }
+
+        .markdown-content code {
+            background: var(--surface);
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            font-size: 0.875em;
+        }
+
+        .markdown-content pre code {
+            background: transparent;
+            padding: 0;
+        }
+
+        .markdown-content ul,
+        .markdown-content ol {
+            margin-left: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .markdown-content li {
+            margin-bottom: 0.25rem;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid var(--accent);
+            padding-left: 1rem;
+            margin-left: 0;
+            color: var(--text-muted);
+        }
+
+        .markdown-content table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        .markdown-content th,
+        .markdown-content td {
+            border: 1px solid var(--border);
+            padding: 0.5rem;
+            text-align: left;
+        }
+
+        .markdown-content th {
+            background: var(--surface);
+        }
+
+        .markdown-content img {
+            max-width: 100%;
+            border-radius: 0.5rem;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-muted);
+        }
+
+        /* Mermaid */
+        .mermaid-content {
+            background: var(--surface);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        .mermaid-content pre {
+            background: transparent;
+            border: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        /* Image Preview */
+        .image-preview {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100%;
+            background: var(--surface);
+            border-radius: 0.5rem;
+            padding: 1rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                display: none;
+            }
+
+            .sidebar.open {
+                display: flex;
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 100;
+            }
+
+            .file-size {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <aside class="sidebar">
+            <div class="header">
+                <h1>🔍 code2llm</h1>
+                <p>Analysis Results Browser</p>
+            </div>
+            <div class="search">
+                <input type="text" id="search" placeholder="Search files..." oninput="filterFiles(this.value)">
+            </div>
+            <div class="file-list" id="fileList">
+                <!-- Files will be rendered here -->
+            </div>
+        </aside>
+
+        <main class="content">
+            <div class="content-header">
+                <div class="content-title">
+                    <span id="contentIcon">📁</span>
+                    <h2 id="contentTitle">Welcome</h2>
+                </div>
+                <div class="content-actions" id="contentActions">
+                    <!-- Actions will be rendered here -->
+                </div>
+            </div>
+            <div class="content-body" id="contentBody">
+                <div class="welcome">
+                    <h2>Analysis Results</h2>
+                    <p>Select a file from the sidebar to view its contents. This interface works on GitHub Pages without any server required.</p>
+                    <div class="stats-grid" id="statsGrid">
+                        <!-- Stats will be rendered here -->
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // Initialize mermaid
+        mermaid.initialize({ startOnLoad: false, theme: 'dark' });
+
+        const files = [{"name": "calls.png", "rel_path": "calls.png", "path": "calls.png", "size": "173.4KB", "icon": "🖼️", "type": "image", "type_name": "Image", "content": "[Binary file]", "is_subdir": false}, {"name": "compact_flow.png", "rel_path": "compact_flow.png", "path": "compact_flow.png", "size": "6.3KB", "icon": "🖼️", "type": "image", "type_name": "Image", "content": "[Binary file]", "is_subdir": false}, {"name": "flow.png", "rel_path": "flow.png", "path": "flow.png", "size": "17.9KB", "icon": "🖼️", "type": "image", "type_name": "Image", "content": "[Binary file]", "is_subdir": false}, {"name": "README.md", "rel_path": "README.md", "path": "README.md", "size": "9.3KB", "icon": "📝", "type": "markdown", "type_name": "Markdown", "content": "# code2llm - Generated Analysis Files\n\nThis directory contains the complete analysis of your project generated by `code2llm`. Each file serves a specific purpose for understanding, refactoring, and documenting your codebase.\n\n## 📁 Generated Files Overview\n\nWhen you run `code2llm ./ -f all`, the following files are created:\n\n### 🎯 Core Analysis Files\n\n| File | Format | Purpose | Key Insights |\n|------|--------|---------|--------------|\n| `evolution.toon.yaml` | **YAML** | **📋 Refactoring queue** - Prioritized improvements | 0 refactoring actions needed |\n| `map.toon.yaml` | **YAML** | **🗺️ Structural map + project header** - Modules, imports, exports, signatures, stats, alerts, hotspots, trend | Project architecture overview |\n\n### 🤖 LLM-Ready Documentation\n\n| File | Format | Purpose | Use Case |\n|------|--------|---------|----------|\n| `prompt.txt` | **Text** | **📝 Ready-to-send prompt** - Lists all files with instructions | Attach to LLM conversation as context guide |\n| `context.md` | **Markdown** | **📖 LLM narrative** - Architecture summary | Paste into ChatGPT/Claude for code analysis |\n\n### 📊 Visualizations\n\n| File | Format | Purpose | Description |\n|------|--------|---------|-------------|\n| `flow.mmd` | **Mermaid** | **🔄 Control flow diagram** | Function call paths with complexity styling |\n| `calls.mmd` | **Mermaid** | **📞 Call graph** | Function dependencies (edges only) |\n| `compact_flow.mmd` | **Mermaid** | **📦 Module overview** | Aggregated module-level view |\n\n## 🚀 Quick Start Commands\n\n### Basic Analysis\n```bash\n# Quick health check (TOON format only)\ncode2llm ./ -f toon\n\n# Generate all formats (what created these files)\ncode2llm ./ -f all\n\n# LLM-ready context only\ncode2llm ./ -f context\n```\n\n### Performance Options\n```bash\n# Fast analysis for large projects\ncode2llm ./ -f toon --strategy quick\n\n# Memory-limited analysis\ncode2llm ./ -f all --max-memory 500\n\n# Skip PNG generation (faster)\ncode2llm ./ -f all --no-png\n```\n\n### Refactoring Focus\n```bash\n# Get refactoring recommendations\ncode2llm ./ -f evolution\n\n# Focus on specific code smells\ncode2llm ./ -f toon --refactor --smell god_function\n\n# Data flow analysis\ncode2llm ./ -f flow --data-flow\n```\n\n## 📖 Understanding Each File\n\n### `analysis.toon` - Health Diagnostics\n**Purpose**: Quick overview of code health issues\n**Key sections**:\n- **HEALTH**: Critical issues (🔴) and warnings (🟡)\n- **REFACTOR**: Prioritized refactoring actions\n- **COUPLING**: Module dependencies and potential cycles\n- **LAYERS**: Package complexity metrics\n- **FUNCTIONS**: High-complexity functions (CC ≥ 10)\n- **CLASSES**: Complex classes needing attention\n\n**Example usage**:\n```bash\n# View health issues\ncat analysis.toon | head -30\n\n# Check refactoring priorities\ngrep \"REFACTOR\" analysis.toon\n```\n\n### `evolution.toon.yaml` - Refactoring Queue\n**Purpose**: Step-by-step refactoring plan\n**Key sections**:\n- **NEXT**: Immediate actions to take\n- **RISKS**: Potential breaking changes\n- **METRICS-TARGET**: Success criteria\n\n**Example usage**:\n```bash\n# Get refactoring plan\ncat evolution.toon.yaml\n\n# Track progress\ngrep \"NEXT\" evolution.toon.yaml\n```\n\n### `flow.toon` - Legacy Data Flow Analysis\n**Purpose**: Understand data movement through the system (legacy / explicit opt-in)\n**Key sections**:\n- **PIPELINES**: Data processing chains\n- **CONTRACTS**: Function input/output contracts\n- **SIDE_EFFECTS**: Functions with external impacts\n\n**Example usage**:\n```bash\n# Find data pipelines\ngrep \"PIPELINES\" flow.toon\n\n# Identify side effects\ngrep \"SIDE_EFFECTS\" flow.toon\n```\n\n### `map.toon.yaml` - Structural Map + Project Header\n**Purpose**: High-level architecture overview plus compact project header\n**Key sections**:\n- **MODULES**: All modules with basic stats\n- **IMPORTS**: Dependency relationships\n- **EXPORTS**: Public API surface and signatures\n- **HEADER**: Stats, alerts, hotspots, evolution trend\n\n**Example usage**:\n```bash\n# See project structure\ncat map.toon.yaml | head -50\n\n# Find public APIs\ngrep \"SIGNATURES\" map.toon.yaml\n```\n\n### `project.toon.yaml` - Compact Analysis View\n**Purpose**: Compact module view generated from project.yaml data\n**Status**: Legacy view generated on demand from unified project.yaml\n\n**Example usage**:\n```bash\n# View compact project structure\ncat project.toon.yaml | head -30\n\n# Find largest files\ngrep -E \"^  .*[0-9]{3,}$\" project.toon.yaml | sort -t',' -k2 -n -r | head -10\n```\n\n### `prompt.txt` - Ready-to-Send LLM Prompt\n**Purpose**: Pre-formatted prompt listing all generated files for LLM conversation\n**Generation**: Written when `code2llm` runs with a source path and requests `-f all` (including `--no-chunk`) or `code2logic`\n**Contents**:\n- **Files section**: Lists all existing generated files with descriptions, including `project.toon.yaml` when generated by `-f all`\n- **Source files section**: Highlights important source files such as `cli_exports/orchestrator.py`\n- **Missing section**: Shows which files weren't generated (if any)\n- **Task section**: Refactoring brief with concrete execution instructions, not just analysis\n- **Priority Order section**: State-dependent refactoring priorities, starting with blockers and then architecture cleanup\n- **Requirements section**: Guidelines for suggested changes\n\n**Example usage**:\n```bash\n# View the prompt\ncat prompt.txt\n\n# Copy to clipboard and paste into ChatGPT/Claude\ncat prompt.txt | pbcopy  # macOS\ncat prompt.txt | xclip -sel clip  # Linux\n```\n\n### `context.md` - LLM Narrative\n**Purpose**: Ready-to-paste context for AI assistants\n**Key sections**:\n- **Overview**: Project statistics\n- **Architecture**: Module breakdown\n- **Entry Points**: Public interfaces\n- **Patterns**: Design patterns detected\n\n**Example usage**:\n```bash\n# Copy to clipboard for LLM\ncat context.md | pbcopy  # macOS\ncat context.md | xclip -sel clip  # Linux\n\n# Use with Claude/ChatGPT for code analysis\n```\n\n### Visualization Files (`*.mmd`, `*.png`)\n**Purpose**: Visual understanding of code structure\n**Files**:\n- `flow.mmd` - Detailed control flow with complexity colors\n- `calls.mmd` - Simple call graph\n- `compact_flow.mmd` - High-level module view\n- `*.png` - Pre-rendered images\n\n**Example usage**:\n```bash\n# View diagrams\nopen flow.png  # macOS\nxdg-open flow.png  # Linux\n\n# Edit in Mermaid Live Editor\n# Copy content of .mmd files to https://mermaid.live\n```\n\n## 🔍 Common Analysis Patterns\n\n### 1. Code Health Assessment\n```bash\n# Quick health check\ncode2llm ./ -f toon\ncat analysis.toon | grep -E \"(HEALTH|REFACTOR)\"\n```\n\n### 2. Refactoring Planning\n```bash\n# Get refactoring queue\ncode2llm ./ -f evolution\ncat evolution.toon.yaml\n\n# Focus on specific issues\ncode2llm ./ -f toon --refactor --smell god_function\n```\n\n### 3. LLM Assistance\n```bash\n# Generate context for AI\ncode2llm ./ -f context\ncat context.md\n\n# Use with Claude: \"Based on this context, help me refactor the god modules\"\n```\n\n### 4. Team Documentation\n```bash\n# Generate all docs for team\ncode2llm ./ -f all -o ./docs/\n\n# Create visual diagrams\nopen docs/flow.png\n```\n\n## 📊 Interpreting Metrics\n\n### Complexity Metrics (CC)\n- **🔴 Critical (≥5.0)**: Immediate refactoring needed\n- **🟠 High (3.0-4.9)**: Consider refactoring\n- **🟡 Medium (1.5-2.9)**: Monitor complexity\n- **🟢 Low (0.1-1.4)**: Acceptable\n- **⚪ Basic (0.0)**: Simple functions\n\n### Module Health\n- **GOD Module**: Too large (>500 lines, >20 methods)\n- **HUB**: High fan-out (calls many modules)\n- **FAN-IN**: High incoming dependencies\n- **CYCLES**: Circular dependencies\n\n### Data Flow Indicators\n- **PIPELINE**: Sequential data processing\n- **CONTRACT**: Clear input/output specification\n- **SIDE_EFFECT**: External state modification\n\n## 🛠️ Integration Examples\n\n### CI/CD Pipeline\n```bash\n#!/bin/bash\n# Analyze code quality in CI\ncode2llm ./ -f toon -o ./analysis\nif grep -q \"🔴 GOD\" ./analysis/analysis.toon; then\n    echo \"❌ God modules detected\"\n    exit 1\nfi\n```\n\n### Pre-commit Hook\n```bash\n#!/bin/sh\n# .git/hooks/pre-commit\ncode2llm ./ -f toon -o ./temp_analysis\nif grep -q \"🔴\" ./temp_analysis/analysis.toon; then\n    echo \"⚠️  Critical issues found. Review before committing.\"\nfi\nrm -rf ./temp_analysis\n```\n\n### Documentation Generation\n```bash\n# Generate docs for README\ncode2llm ./ -f context -o ./docs/\necho \"## Architecture\" >> README.md\ncat docs/context.md >> README.md\n```\n\n## 📚 Next Steps\n\n1. **Review `analysis.toon`** - Identify critical issues\n2. **Check `evolution.toon.yaml`** - Plan refactoring priorities\n3. **Use `context.md`** - Get LLM assistance for complex changes\n4. **Reference visualizations** - Understand system architecture\n5. **Track progress** - Re-run analysis after changes\n\n## 🔧 Advanced Usage\n\n### Custom Analysis\n```bash\n# Deep analysis with all insights\ncode2llm ./ -m hybrid -f all --max-depth 15 -v\n\n# Performance-optimized\ncode2llm ./ -m static -f toon --strategy quick\n\n# Refactoring-focused\ncode2llm ./ -f toon,evolution --refactor\n```\n\n### Output Customization\n```bash\n# Separate output directories\ncode2llm ./ -f all -o ./analysis-$(date +%Y%m%d)\n\n# Split YAML into multiple files\ncode2llm ./ -f yaml --split-output\n\n# Separate orphaned functions\ncode2llm ./ -f yaml --separate-orphans\n```\n\n---\n\n**Generated by**: `code2llm ./ -f all --readme`  \n**Analysis Date**: 2026-04-24  \n**Total Functions**: 175  \n**Total Classes**: 6  \n**Modules**: 70  \n\nFor more information about code2llm, visit: https://github.com/tom-sapletta/code2llm\n", "is_subdir": false}, {"name": "context.md", "rel_path": "context.md", "path": "context.md", "size": "14.0KB", "icon": "📝", "type": "markdown", "type_name": "Markdown", "content": "# System Architecture Analysis\n\n## Overview\n\n- **Project**: /home/tom/github/semcod/dbos\n- **Primary Language**: md\n- **Languages**: md: 18, yaml: 15, json: 5, txt: 5, shell: 4\n- **Analysis Mode**: static\n- **Total Functions**: 175\n- **Total Classes**: 6\n- **Modules**: 70\n- **Entry Points**: 162\n\n## Architecture by Module\n\n### api-gateway.src\n- **Functions**: 52\n- **File**: `index.js`\n\n### sync-engine.src\n- **Functions**: 28\n- **File**: `index.js`\n\n### vfs-webdav.app\n- **Functions**: 25\n- **Classes**: 4\n- **File**: `app.py`\n\n### vfs-fuse.fuse_fs\n- **Functions**: 18\n- **Classes**: 1\n- **File**: `fuse_fs.py`\n\n### SUMD\n- **Functions**: 16\n- **File**: `SUMD.md`\n\n### project.map.toon\n- **Functions**: 16\n- **File**: `map.toon.yaml`\n\n### command-bus.src\n- **Functions**: 9\n- **File**: `index.js`\n\n### generators.gen-handlebars.src\n- **Functions**: 8\n- **File**: `index.js`\n\n### workers.python.worker\n- **Functions**: 6\n- **Classes**: 1\n- **File**: `worker.py`\n\n### generators.gen-jinja.app\n- **Functions**: 5\n- **File**: `app.py`\n\n### workers.php.worker\n- **Functions**: 4\n- **File**: `worker.php`\n\n### vfs-webdav.project.map.toon\n- **Functions**: 3\n- **File**: `map.toon.yaml`\n\n### vfs-webdav.SUMD\n- **Functions**: 3\n- **File**: `SUMD.md`\n\n### generators.gen-twig.index\n- **Functions**: 2\n- **File**: `index.php`\n\n### vfs-fuse.project.map.toon\n- **Functions**: 2\n- **File**: `map.toon.yaml`\n\n### vfs-fuse.SUMD\n- **Functions**: 2\n- **File**: `SUMD.md`\n\n### README\n- **Functions**: 1\n- **File**: `README.md`\n\n## Key Entry Points\n\nMain execution flows into the system:\n\n### sync-engine.src.body\n- **Calls**: sync-engine.src.test, sync-engine.src.toString, sync-engine.src.matter, sync-engine.src.split, sync-engine.src.filter, sync-engine.src.connect, sync-engine.src.query, sync-engine.src.exists\n\n### generators.gen-jinja.app.render\n> Look up a markdown entity, convert its body to HTML via Jinja2,\nand persist the rendered HTML into content_html.\n- **Calls**: app.post, generators.gen-jinja.app.db, c.cursor, cur.execute, cur.fetchone, md_lib.markdown, cur.execute, cur.fetchone\n\n### workers.python.worker.handle_create_device\n- **Calls**: None.hexdigest, payload.keys, HTTPException, payload.get, payload.get, payload.get, payload.get, payload.get\n\n### vfs-fuse.fuse_fs.PlatformFS._persist\n- **Calls**: self._split, self.layout, None.hexdigest, FuseOSError, vfs-fuse.fuse_fs.db, c.cursor, cur.execute, cur.execute\n\n### vfs-webdav.app.EntityFile._persist\n- **Calls**: None.hexdigest, vfs-fuse.fuse_fs.db, c.cursor, cur.execute, cur.execute, c.commit, hashlib.sha256, cur.fetchone\n\n### workers.python.worker.handle_change_device_status\n- **Calls**: payload.get, payload.get, HTTPException, workers.python.worker.db, c.cursor, cur.execute, cur.fetchone, data.get\n\n### sync-engine.src.client\n- **Calls**: sync-engine.src.query, sync-engine.src.exists, sync-engine.src.entities, sync-engine.src.VALUES, sync-engine.src.CONFLICT, sync-engine.src.stringify, sync-engine.src.toString, sync-engine.src.sha256\n\n### api-gateway.src.client\n- **Calls**: api-gateway.src.query, api-gateway.src.entities, api-gateway.src.VALUES, api-gateway.src.createHash, api-gateway.src.update, api-gateway.src.stringify, api-gateway.src.digest, api-gateway.src.content_json\n\n### generators.gen-handlebars.src.client\n- **Calls**: generators.gen-handlebars.src.query, generators.gen-handlebars.src.status, generators.gen-handlebars.src.json, generators.gen-handlebars.src.compile, generators.gen-handlebars.src.template, generators.gen-handlebars.src.Date, generators.gen-handlebars.src.toISOString, generators.gen-handlebars.src.createHash\n\n### vfs-fuse.fuse_fs.PlatformFS.getattr\n- **Calls**: time.time, dict, self._split, self.layout, FuseOSError, self._load_payload, os.getuid, os.getgid\n\n### generators.gen-jinja.app.preview\n> Render but don't persist — useful for quick dev checks.\n- **Calls**: app.get, md_lib.markdown, env.from_string, tpl.render, generators.gen-jinja.app.db, c.cursor, cur.execute, cur.fetchone\n\n### sync-engine.src.handleFile\n- **Calls**: sync-engine.src.relative, sync-engine.src.split, sync-engine.src.warn, sync-engine.src.extname, sync-engine.src.toLowerCase, sync-engine.src.path, sync-engine.src.substring, sync-engine.src.readFile\n\n### sync-engine.src.entityId\n- **Calls**: sync-engine.src.query, sync-engine.src.content_json, sync-engine.src.VALUES, sync-engine.src.CONFLICT, sync-engine.src.content_yaml, sync-engine.src.content_xml, sync-engine.src.allowed, sync-engine.src.content_html\n\n### sync-engine.src.checksumBase\n- **Calls**: sync-engine.src.query, sync-engine.src.content_json, sync-engine.src.VALUES, sync-engine.src.CONFLICT, sync-engine.src.content_yaml, sync-engine.src.content_xml, sync-engine.src.allowed, sync-engine.src.content_html\n\n### sync-engine.src.checksum\n- **Calls**: sync-engine.src.query, sync-engine.src.content_json, sync-engine.src.VALUES, sync-engine.src.CONFLICT, sync-engine.src.content_yaml, sync-engine.src.content_xml, sync-engine.src.allowed, sync-engine.src.content_html\n\n### vfs-fuse.fuse_fs.main\n- **Calls**: range, os.makedirs, print, FUSE, PlatformFS, vfs-fuse.fuse_fs.db, c.cursor, cur.execute\n\n### workers.php.worker.handle_render_page\n- **Calls**: workers.php.worker.RuntimeException, workers.php.worker.sprintf, workers.php.worker.rawurlencode, workers.php.worker.curl_init, workers.php.worker.curl_setopt_array, workers.php.worker.json_encode, workers.php.worker.curl_exec, workers.php.worker.curl_getinfo\n\n### vfs-fuse.fuse_fs.PlatformFS.write\n- **Calls**: self._open.get, len, FuseOSError, len, buf.extend, len, len, len\n\n### vfs-fuse.fuse_fs.PlatformFS.layout\n- **Calls**: vfs-fuse.fuse_fs.db, c.cursor, cur.execute, cur.fetchall, time.time, time.time, tpl.split, tpl.rsplit\n\n### vfs-fuse.fuse_fs.PlatformFS._load_payload\n- **Calls**: vfs-fuse.fuse_fs.db, c.cursor, cur.execute, cur.fetchone, None.encode, None.encode, json.dumps, bytes\n\n### vfs-webdav.app.EntityFile._load\n- **Calls**: vfs-fuse.fuse_fs.db, c.cursor, cur.execute, cur.fetchone, None.encode, None.encode, json.dumps, bytes\n\n### api-gateway.src.checksum\n- **Calls**: api-gateway.src.content_json, api-gateway.src.VALUES, api-gateway.src.content_yaml, api-gateway.src.content_xml, api-gateway.src.content_html, api-gateway.src.content_markdown, api-gateway.src.content_binary, api-gateway.src.from\n\n### api-gateway.src.entityId\n- **Calls**: api-gateway.src.content_json, api-gateway.src.VALUES, api-gateway.src.content_yaml, api-gateway.src.content_xml, api-gateway.src.content_html, api-gateway.src.content_markdown, api-gateway.src.content_binary, api-gateway.src.from\n\n### vfs-fuse.fuse_fs.PlatformFS.readdir\n- **Calls**: self._list_dir, None.split, FuseOSError, list, None.keys, path.strip, self.layout\n\n### vfs-fuse.fuse_fs.PlatformFS.unlink\n- **Calls**: self._split, self.layout, FuseOSError, vfs-fuse.fuse_fs.db, c.cursor, cur.execute, c.commit\n\n### vfs-webdav.app.PlatformProvider.get_resource_inst\n- **Calls**: RootCollection, root.get_member, folder.get_member, len, RootCollection, path.split, len\n\n### workers.php.worker.handle_render_report\n- **Calls**: workers.php.worker.db, workers.php.worker.prepare, workers.php.worker.execute, workers.php.worker.fetchColumn, workers.php.worker.RuntimeException, workers.php.worker.strlen\n\n### api-gateway.src.auth\n- **Calls**: api-gateway.src.startsWith, api-gateway.src.status, api-gateway.src.json, api-gateway.src.verify, api-gateway.src.slice, api-gateway.src.next\n\n### vfs-fuse.fuse_fs.PlatformFS._list_dir\n- **Calls**: self.layout, vfs-fuse.fuse_fs.db, c.cursor, cur.execute, cur.fetchall\n\n### workers.python.worker.handle_render_article\n- **Calls**: httpx.post, payload.get, payload.get, HTTPException, r.json\n\n## Process Flows\n\nKey execution flows identified:\n\n### Flow 1: body\n```\nbody [sync-engine.src]\n```\n\n### Flow 2: render\n```\nrender [generators.gen-jinja.app]\n  └─> db\n```\n\n### Flow 3: handle_create_device\n```\nhandle_create_device [workers.python.worker]\n```\n\n### Flow 4: _persist\n```\n_persist [vfs-fuse.fuse_fs.PlatformFS]\n  └─ →> db\n```\n\n### Flow 5: handle_change_device_status\n```\nhandle_change_device_status [workers.python.worker]\n  └─> db\n```\n\n### Flow 6: client\n```\nclient [sync-engine.src]\n```\n\n### Flow 7: getattr\n```\ngetattr [vfs-fuse.fuse_fs.PlatformFS]\n```\n\n### Flow 8: preview\n```\npreview [generators.gen-jinja.app]\n  └─> db\n```\n\n### Flow 9: handleFile\n```\nhandleFile [sync-engine.src]\n```\n\n### Flow 10: entityId\n```\nentityId [sync-engine.src]\n```\n\n## Key Classes\n\n### vfs-fuse.fuse_fs.PlatformFS\n> Virtual filesystem where:\n  /                                  root\n  /{folder}/                    \n- **Methods**: 16\n- **Key Methods**: vfs-fuse.fuse_fs.PlatformFS.__init__, vfs-fuse.fuse_fs.PlatformFS.layout, vfs-fuse.fuse_fs.PlatformFS._split, vfs-fuse.fuse_fs.PlatformFS._load_payload, vfs-fuse.fuse_fs.PlatformFS._list_dir, vfs-fuse.fuse_fs.PlatformFS.getattr, vfs-fuse.fuse_fs.PlatformFS.readdir, vfs-fuse.fuse_fs.PlatformFS.open, vfs-fuse.fuse_fs.PlatformFS.create, vfs-fuse.fuse_fs.PlatformFS.read\n- **Inherits**: LoggingMixIn, Operations\n\n### vfs-webdav.app.EntityFile\n> One row in a content_* table, exposed as a single file.\n- **Methods**: 14\n- **Key Methods**: vfs-webdav.app.EntityFile.__init__, vfs-webdav.app.EntityFile._load, vfs-webdav.app.EntityFile.get_content_length, vfs-webdav.app.EntityFile.get_content_type, vfs-webdav.app.EntityFile.get_display_name, vfs-webdav.app.EntityFile.get_etag, vfs-webdav.app.EntityFile.support_etag, vfs-webdav.app.EntityFile.get_last_modified, vfs-webdav.app.EntityFile.support_ranges, vfs-webdav.app.EntityFile.get_content\n- **Inherits**: DAVNonCollection\n\n### vfs-webdav.app.EntityFolder\n> A directory that lists all entities of one entity_type as files.\n- **Methods**: 4\n- **Key Methods**: vfs-webdav.app.EntityFolder.__init__, vfs-webdav.app.EntityFolder.get_member_names, vfs-webdav.app.EntityFolder.get_member, vfs-webdav.app.EntityFolder.support_recursive_delete\n- **Inherits**: DAVCollection\n\n### vfs-webdav.app.RootCollection\n> Top-level collection: one subfolder per schema_paths row.\n- **Methods**: 3\n- **Key Methods**: vfs-webdav.app.RootCollection.__init__, vfs-webdav.app.RootCollection.get_member_names, vfs-webdav.app.RootCollection.get_member\n- **Inherits**: DAVCollection\n\n### vfs-webdav.app.PlatformProvider\n> wsgidav hook — all paths resolve through here.\n- **Methods**: 1\n- **Key Methods**: vfs-webdav.app.PlatformProvider.get_resource_inst\n- **Inherits**: DAVProvider\n\n### workers.python.worker.ExecuteRequest\n- **Methods**: 0\n- **Inherits**: BaseModel\n\n## Data Transformation Functions\n\nKey functions that process and transform data:\n\n### api-gateway.src.decodeExternalId\n- **Output to**: api-gateway.src.decodeURIComponent\n\n### api-gateway.src.validate\n- **Output to**: api-gateway.src.get, api-gateway.src.compile, api-gateway.src.check\n\n### api-gateway.src.decodedId\n\n### sync-engine.src.parse\n- **Output to**: sync-engine.src.toString, sync-engine.src.load, sync-engine.src.XMLParser, sync-engine.src.keys, sync-engine.src.find\n\n### sync-engine.src.parser\n- **Output to**: sync-engine.src.XMLParser\n\n### sync-engine.src.parsed\n\n## Public API Surface\n\nFunctions exposed as public API (no underscore prefix):\n\n- `sync-engine.src.parse` - 47 calls\n- `sync-engine.src.body` - 43 calls\n- `generators.gen-jinja.app.render` - 28 calls\n- `workers.python.worker.handle_create_device` - 27 calls\n- `workers.python.worker.handle_change_device_status` - 21 calls\n- `sync-engine.src.upsertEntity` - 21 calls\n- `sync-engine.src.client` - 20 calls\n- `api-gateway.src.client` - 18 calls\n- `generators.gen-handlebars.src.client` - 15 calls\n- `vfs-fuse.fuse_fs.PlatformFS.getattr` - 12 calls\n- `generators.gen-jinja.app.preview` - 12 calls\n- `sync-engine.src.handleFile` - 12 calls\n- `sync-engine.src.entityId` - 11 calls\n- `sync-engine.src.checksumBase` - 11 calls\n- `sync-engine.src.checksum` - 11 calls\n- `vfs-fuse.fuse_fs.main` - 10 calls\n- `workers.php.worker.handle_render_page` - 10 calls\n- `vfs-fuse.fuse_fs.PlatformFS.write` - 9 calls\n- `vfs-fuse.fuse_fs.PlatformFS.layout` - 8 calls\n- `api-gateway.src.checksum` - 8 calls\n- `api-gateway.src.entityId` - 8 calls\n- `vfs-fuse.fuse_fs.PlatformFS.readdir` - 7 calls\n- `vfs-fuse.fuse_fs.PlatformFS.unlink` - 7 calls\n- `vfs-webdav.app.PlatformProvider.get_resource_inst` - 7 calls\n- `sync-engine.src.main` - 7 calls\n- `vfs-webdav.app.load_directory_layout` - 6 calls\n- `workers.php.worker.handle_render_report` - 6 calls\n- `api-gateway.src.auth` - 6 calls\n- `workers.python.worker.handle_render_article` - 5 calls\n- `generators.gen-jinja.app.capabilities` - 5 calls\n- `sync-engine.src.pathWithoutExt` - 5 calls\n- `sync-engine.src.external_id` - 5 calls\n- `command-bus.src.commandId` - 4 calls\n- `command-bus.src.targetUrl` - 4 calls\n- `vfs-fuse.fuse_fs.PlatformFS.open` - 4 calls\n- `vfs-webdav.app.EntityFile.delete` - 4 calls\n- `vfs-webdav.app.EntityFolder.get_member_names` - 4 calls\n- `vfs-webdav.app.EntityFolder.get_member` - 4 calls\n- `workers.python.worker.execute` - 4 calls\n- `api-gateway.src.loadEntity` - 4 calls\n\n## System Interactions\n\nHow components interact:\n\n```mermaid\ngraph TD\n    body --> test\n    body --> toString\n    body --> matter\n    body --> split\n    body --> filter\n    render --> post\n    render --> db\n    render --> cursor\n    render --> execute\n    render --> fetchone\n    handle_create_device --> hexdigest\n    handle_create_device --> keys\n    handle_create_device --> HTTPException\n    handle_create_device --> get\n    _persist --> _split\n    _persist --> layout\n    _persist --> hexdigest\n    _persist --> FuseOSError\n    _persist --> db\n    _persist --> cursor\n    _persist --> execute\n    handle_change_device --> get\n    handle_change_device --> HTTPException\n    handle_change_device --> db\n    handle_change_device --> cursor\n    client --> query\n    client --> exists\n    client --> entities\n    client --> VALUES\n    client --> CONFLICT\n```\n\n## Reverse Engineering Guidelines\n\n1. **Entry Points**: Start analysis from the entry points listed above\n2. **Core Logic**: Focus on classes with many methods\n3. **Data Flow**: Follow data transformation functions\n4. **Process Flows**: Use the flow diagrams for execution paths\n5. **API Surface**: Public API functions reveal the interface\n\n## Context for LLM\n\nMaintain the identified architectural patterns and public API surface when suggesting changes.", "is_subdir": false}, {"name": "calls.mmd", "rel_path": "calls.mmd", "path": "calls.mmd", "size": "4.3KB", "icon": "📈", "type": "mermaid", "type_name": "Mermaid", "content": "flowchart LR\n    subgraph api_gateway__src\n        api_gateway__src__check[&quot;check&quot;]\n        api_gateway__src__validate[&quot;validate&quot;]\n    end\n    subgraph generators__gen_handlebars\n        generators__gen_handlebars__src__rendered[&quot;rendered&quot;]\n        generators__gen_handlebars__src__client[&quot;client&quot;]\n        generators__gen_handlebars__src__template[&quot;template&quot;]\n    end\n    subgraph generators__gen_jinja\n        generators__gen_jinja__app__capabilities[&quot;capabilities&quot;]\n        generators__gen_jinja__app__render[&quot;render&quot;]\n        generators__gen_jinja__app__db[&quot;db&quot;]\n        generators__gen_jinja__app__preview[&quot;preview&quot;]\n    end\n    subgraph sync_engine__src\n        sync_engine__src__pathWithoutExt[&quot;pathWithoutExt&quot;]\n        sync_engine__src__parse[&quot;parse&quot;]\n        sync_engine__src__external_id[&quot;external_id&quot;]\n        sync_engine__src__client[&quot;client&quot;]\n        sync_engine__src__handleFile[&quot;handleFile&quot;]\n        sync_engine__src__upsertEntity[&quot;upsertEntity&quot;]\n        sync_engine__src__main[&quot;main&quot;]\n        sync_engine__src__loadMimeRegistry[&quot;loadMimeRegistry&quot;]\n        sync_engine__src__sha256[&quot;sha256&quot;]\n    end\n    subgraph vfs_fuse__fuse_fs\n        vfs_fuse__fuse_fs__PlatformFS___load_payload[&quot;_load_payload&quot;]\n        vfs_fuse__fuse_fs__PlatformFS__unlink[&quot;unlink&quot;]\n        vfs_fuse__fuse_fs__PlatformFS___list_dir[&quot;_list_dir&quot;]\n        vfs_fuse__fuse_fs__PlatformFS___persist[&quot;_persist&quot;]\n        vfs_fuse__fuse_fs__db[&quot;db&quot;]\n        vfs_fuse__fuse_fs__main[&quot;main&quot;]\n        vfs_fuse__fuse_fs__PlatformFS__layout[&quot;layout&quot;]\n    end\n    subgraph vfs_webdav__app\n        vfs_webdav__app__EntityFile___persist[&quot;_persist&quot;]\n        vfs_webdav__app__RootCollection____init__[&quot;__init__&quot;]\n        vfs_webdav__app__db[&quot;db&quot;]\n        vfs_webdav__app__EntityFile__delete[&quot;delete&quot;]\n        vfs_webdav__app__EntityFolder__get_member_names[&quot;get_member_names&quot;]\n        vfs_webdav__app__EntityFile___load[&quot;_load&quot;]\n        vfs_webdav__app__load_directory_layout[&quot;load_directory_layout&quot;]\n    end\n    subgraph workers__php\n        workers__php__worker__db[&quot;db&quot;]\n        workers__php__worker__handle_render_report[&quot;handle_render_report&quot;]\n    end\n    subgraph workers__python\n        workers__python__worker__handle_change_device_status[&quot;handle_change_device_status&quot;]\n        workers__python__worker__db[&quot;db&quot;]\n        workers__python__worker__handle_create_device[&quot;handle_create_device&quot;]\n    end\n    vfs_fuse__fuse_fs__PlatformFS__layout --&gt; vfs_fuse__fuse_fs__db\n    vfs_fuse__fuse_fs__PlatformFS___load_payload --&gt; vfs_fuse__fuse_fs__db\n    vfs_fuse__fuse_fs__PlatformFS___list_dir --&gt; vfs_fuse__fuse_fs__db\n    vfs_fuse__fuse_fs__PlatformFS__unlink --&gt; vfs_fuse__fuse_fs__db\n    vfs_fuse__fuse_fs__PlatformFS___persist --&gt; vfs_fuse__fuse_fs__db\n    vfs_fuse__fuse_fs__main --&gt; vfs_fuse__fuse_fs__db\n    vfs_webdav__app__load_directory_layout --&gt; vfs_webdav__app__db\n    vfs_webdav__app__EntityFile___load --&gt; vfs_fuse__fuse_fs__db\n    vfs_webdav__app__EntityFile___persist --&gt; vfs_fuse__fuse_fs__db\n    vfs_webdav__app__EntityFile__delete --&gt; vfs_fuse__fuse_fs__db\n    vfs_webdav__app__EntityFolder__get_member_names --&gt; vfs_fuse__fuse_fs__db\n    vfs_webdav__app__RootCollection____init__ --&gt; vfs_webdav__app__load_directory_layout\n    workers__php__worker__handle_render_report --&gt; workers__php__worker__db\n    workers__python__worker__handle_create_device --&gt; workers__python__worker__db\n    workers__python__worker__handle_change_device_status --&gt; workers__python__worker__db\n    api_gateway__src__validate --&gt; api_gateway__src__check\n    generators__gen_handlebars__src__client --&gt; generators__gen_handlebars__src__template\n    generators__gen_handlebars__src__rendered --&gt; generators__gen_handlebars__src__template\n    generators__gen_jinja__app__capabilities --&gt; generators__gen_jinja__app__db\n    generators__gen_jinja__app__render --&gt; generators__gen_jinja__app__db\n    generators__gen_jinja__app__preview --&gt; generators__gen_jinja__app__db\n    sync_engine__src__upsertEntity --&gt; sync_engine__src__sha256\n    sync_engine__src__client --&gt; sync_engine__src__sha256\n    sync_engine__src__handleFile --&gt; sync_engine__src__parse\n    sync_engine__src__pathWithoutExt --&gt; sync_engine__src__parse\n    sync_engine__src__pathWithoutExt --&gt; sync_engine__src__upsertEntity\n    sync_engine__src__external_id --&gt; sync_engine__src__parse\n    sync_engine__src__external_id --&gt; sync_engine__src__upsertEntity\n    sync_engine__src__main --&gt; sync_engine__src__loadMimeRegistry\n", "is_subdir": false}, {"name": "compact_flow.mmd", "rel_path": "compact_flow.mmd", "path": "compact_flow.mmd", "size": "164B", "icon": "📈", "type": "mermaid", "type_name": "Mermaid", "content": "flowchart TD\n    vfs_fuse__fuse_fs[&quot;vfs-fuse.fuse_fs&lt;br/&gt;18 funcs&quot;]\n    vfs_webdav__app[&quot;vfs-webdav.app&lt;br/&gt;25 funcs&quot;]\n    vfs_webdav__app ==&gt;|4| vfs_fuse__fuse_fs\n", "is_subdir": false}, {"name": "flow.mmd", "rel_path": "flow.mmd", "path": "flow.mmd", "size": "1.2KB", "icon": "📈", "type": "mermaid", "type_name": "Mermaid", "content": "flowchart TD\n\n    %% Entry points (blue)\n    classDef entry fill:#4dabf7,stroke:#1971c2,color:#fff\n\n    subgraph Core\n        README__UNIQUE[&quot;UNIQUE&quot;]\n        command_bus__src__pool[&quot;pool&quot;]\n        command_bus__src__resolveRuntime[&quot;resolveRuntime&quot;]\n        command_bus__src__runtimeUrl[&quot;runtimeUrl&quot;]\n        command_bus__src__app[&quot;app&quot;]\n        command_bus__src__runtime[&quot;runtime&quot;]\n        command_bus__src__commandId[&quot;commandId&quot;]\n        command_bus__src__targetUrl[&quot;targetUrl&quot;]\n        command_bus__src__workerResp[&quot;workerResp&quot;]\n        command_bus__src__result[&quot;result&quot;]\n        vfs_fuse__fuse_fs__PlatformFS__layout[&quot;layout&quot;]\n        vfs_fuse__fuse_fs__PlatformFS___split[&quot;_split&quot;]\n        vfs_fuse__fuse_fs__PlatformFS___load_payload[&quot;_load_payload&quot;]\n        vfs_fuse__fuse_fs__PlatformFS___list_dir[&quot;_list_dir&quot;]\n        vfs_fuse__fuse_fs__PlatformFS__getattr[&quot;getattr&quot;]\n        ...[&quot;+147 more&quot;]\n    end\n\n    class README__UNIQUE,command_bus__src__pool,command_bus__src__resolveRuntime,command_bus__src__runtimeUrl,command_bus__src__app,command_bus__src__runtime,command_bus__src__commandId,command_bus__src__targetUrl,command_bus__src__workerResp,command_bus__src__result entry\n", "is_subdir": false}, {"name": "prompt.txt", "rel_path": "prompt.txt", "path": "prompt.txt", "size": "2.9KB", "icon": "📄", "type": "text", "type_name": "Text", "content": "You are an AI assistant helping me understand and improve a codebase.\nUse the attached/generated files as the authoritative context.\nYour goal is to refactor the project based on these files, not just summarize it.\n\nwe are in project path: dbos\n\nFiles for analysis:\n\nNote: project/validation.toon.yaml and project/duplication.toon.yaml are generated by external tools (vallm and redup)\n- analysis.toon.yaml  (Health diagnostics - complexity metrics, god modules, coupling issues, refactoring priorities) [6KB]\n- map.toon.yaml  (Structural map - files, sizes, imports, exports, signatures, project header) [9KB]\n- evolution.toon.yaml  (Refactoring queue - ranked actions by impact/effort, risks, metrics targets, history) [1KB]\n- project.toon.yaml  (Compact project overview - generated from project.yaml data) [2KB]\n- context.md  (LLM narrative - architecture summary and project context) [14KB]\n- README.md  (Generated documentation - overview and usage guide) [9KB]\n\nTask:\n- Treat this prompt as a refactoring brief: identify the highest-priority changes and prepare concrete edits.\n- Use the file set to decide whether the first pass should focus on correctness, duplication, complexity reduction, or architecture cleanup.\n- If you can safely implement the refactor, do it; otherwise give an exact file-by-file change plan and test plan.\n- Use analysis.toon.yaml to locate high-CC functions and god modules that should be split first.\n- Keep module boundaries intact and update imports/exports according to map.toon.yaml.\n- Use evolution.toon.yaml as the execution backlog and work from the top-ranked items.\n- Keep project.toon.yaml aligned with the refactored architecture.\n\nPriority Order:\nP1 — Split or simplify the highest-CC / god modules identified in analysis.toon.yaml.\nP1 — Preserve module boundaries and update imports/exports according to map.toon.yaml.\nP2 — Keep the compact project overview in project.toon.yaml aligned with the refactor.\nP2 — Execute the highest-impact items from evolution.toon.yaml in order of benefit/risk.\n\nFocus Areas for Analysis:\n1. **Code Health Analysis** - Review complexity metrics, god modules, coupling issues from analysis.toon.yaml\n2. **Structural Map** - Use map.toon.yaml to inspect imports, exports, signatures, and the project header\n3. **Refactoring Priorities** - Examine ranked refactoring actions and risk assessment from evolution.toon.yaml\n4. **Project Overview** - Review the compact project overview from project.toon.yaml\n\nAnalysis Strategy:\n- Start with analysis.toon.yaml for health metrics, then map.toon.yaml for structure and signatures\n- Review evolution.toon.yaml for action priorities and next steps\n- Compare the compact project overview in project.toon.yaml with the main analysis files\n\nConstraints:\n- Prefer minimal, incremental changes.\n- Maintain full backward compatibility.\n- Base recommendations on concrete metrics from the provided files.\n- If uncertain, ask clarifying questions.\n", "is_subdir": false}, {"name": "mermaid.export", "rel_path": "mermaid.export", "path": "mermaid.export", "size": "12.2KB", "icon": "📄", "type": "unknown", "type_name": "EXPORT", "content": "[Binary file]", "is_subdir": false}, {"name": "analysis.toon.yaml", "rel_path": "analysis.toon.yaml", "path": "analysis.toon.yaml", "size": "6.8KB", "icon": "⚙️", "type": "yaml", "type_name": "YAML", "content": "# code2llm | 70f 8073L | md:18,yaml:15,json:5,txt:5,shell:4,javascript:4,python:4,php:2,yml:1,conf:1 | 2026-04-24\n# CC̄=2.7 | critical:5/175 | dups:0 | cycles:0\n\nHEALTH[5]:\n  🟡 CC    client CC=15 (limit:15)\n  🟡 CC    parse CC=40 (limit:15)\n  🟡 CC    body CC=32 (limit:15)\n  🟡 CC    upsertEntity CC=16 (limit:15)\n  🟡 CC    client CC=16 (limit:15)\n\nREFACTOR[1]:\n  1. split 5 high-CC methods  (CC&gt;15)\n\nPIPELINES[115]:\n  [1] Src [pool]: pool\n      PURITY: 100% pure\n  [2] Src [resolveRuntime]: resolveRuntime\n      PURITY: 100% pure\n  [3] Src [app]: app\n      PURITY: 100% pure\n  [4] Src [runtime]: runtime\n      PURITY: 100% pure\n  [5] Src [commandId]: commandId\n      PURITY: 100% pure\n\nLAYERS:\n  sync-engine/                    CC̄=6.3    ←in:0  →out:0\n  │ !! index.js                   294L  0C   27m  CC=40     ←0\n  │ SUMD.md                    156L  0C    0m  CC=0.0    ←0\n  │ SUMR.md                    112L  0C    0m  CC=0.0    ←0\n  │ package.json                16L  0C    0m  CC=0.0    ←0\n  │ map.toon.yaml               10L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  vfs-fuse/                       CC̄=3.1    ←in:4  →out:0\n  │ fuse_fs                    365L  1C   18m  CC=11     ←1\n  │ SUMD.md                    149L  0C    2m  CC=0.0    ←0\n  │ SUMR.md                     98L  0C    0m  CC=0.0    ←0\n  │ map.toon.yaml               15L  0C    2m  CC=0.0    ←0\n  │ requirements.txt             3L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  api-gateway/                    CC̄=2.9    ←in:0  →out:0\n  │ !! index.js                   438L  0C   36m  CC=15     ←0\n  │ SUMD.md                    156L  0C    0m  CC=0.0    ←0\n  │ SUMR.md                    113L  0C    0m  CC=0.0    ←0\n  │ package.json                16L  0C    0m  CC=0.0    ←0\n  │ map.toon.yaml               10L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  workers/                        CC̄=2.5    ←in:0  →out:0\n  │ worker                     172L  1C    6m  CC=4      ←0\n  │ worker.php                  92L  0C    4m  CC=5      ←0\n  │ requirements.txt             5L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  generators/                     CC̄=2.1    ←in:0  →out:0\n  │ app                        200L  0C    5m  CC=4      ←0\n  │ index.php                  170L  0C    2m  CC=2      ←0\n  │ index.js                   130L  0C    8m  CC=7      ←0\n  │ package.json                12L  0C    0m  CC=0.0    ←0\n  │ composer.json                6L  0C    0m  CC=0.0    ←0\n  │ requirements.txt             5L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  command-bus/                    CC̄=2.0    ←in:0  →out:0\n  │ SUMD.md                    151L  0C    0m  CC=0.0    ←0\n  │ SUMR.md                    108L  0C    0m  CC=0.0    ←0\n  │ index.js                    90L  0C    9m  CC=4      ←0\n  │ package.json                11L  0C    0m  CC=0.0    ←0\n  │ map.toon.yaml               10L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  vfs-webdav/                     CC̄=1.6    ←in:0  →out:4\n  │ app                        387L  4C   25m  CC=9      ←0\n  │ SUMD.md                    155L  0C    3m  CC=0.0    ←0\n  │ SUMR.md                     98L  0C    0m  CC=0.0    ←0\n  │ map.toon.yaml               19L  0C    3m  CC=0.0    ←0\n  │ requirements.txt             4L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  ./                              CC̄=0.0    ←in:0  →out:0\n  │ !! SUMR.md                    577L  0C    0m  CC=0.0    ←0\n  │ !! goal.yaml                  509L  0C    0m  CC=0.0    ←0\n  │ SUMD.md                    400L  0C   12m  CC=0.0    ←0\n  │ README.md                  282L  0C    1m  CC=0.0    ←0\n  │ docker-compose.yml         213L  0C    0m  CC=0.0    ←0\n  │ project.sh                  43L  0C    0m  CC=0.0    ←0\n  │ CHANGELOG.md                29L  0C    0m  CC=0.0    ←0\n  │ tree.sh                      1L  0C    0m  CC=0.0    ←0\n  │\n  project/                        CC̄=0.0    ←in:0  →out:0\n  │ !! calls.yaml                 529L  0C    0m  CC=0.0    ←0\n  │ context.md                 369L  0C    0m  CC=0.0    ←0\n  │ README.md                  339L  0C    0m  CC=0.0    ←0\n  │ calls.toon.yaml            123L  0C    0m  CC=0.0    ←0\n  │ analysis.toon.yaml         111L  0C    0m  CC=0.0    ←0\n  │ evolution.toon.yaml         59L  0C    0m  CC=0.0    ←0\n  │ map.toon.yaml               57L  0C   12m  CC=0.0    ←0\n  │ project.toon.yaml           51L  0C    0m  CC=0.0    ←0\n  │ prompt.txt                  49L  0C    0m  CC=0.0    ←0\n  │ duplication.toon.yaml        9L  0C    0m  CC=0.0    ←0\n  │\n  scripts/                        CC̄=0.0    ←in:0  →out:0\n  │ demo.sh                    123L  0C    0m  CC=0.0    ←0\n  │ export-service.sh           93L  0C    0m  CC=0.0    ←0\n  │\n  ui-runtime/                     CC̄=0.0    ←in:0  →out:0\n  │ SUMD.md                    135L  0C    0m  CC=0.0    ←0\n  │ SUMR.md                     98L  0C    0m  CC=0.0    ←0\n  │ map.toon.yaml                9L  0C    0m  CC=0.0    ←0\n  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0\n  │\n  cdn/                            CC̄=0.0    ←in:0  →out:0\n  │ nginx.conf                  74L  0C    0m  CC=0.0    ←0\n  │\n  testql-scenarios/               CC̄=0.0    ←in:0  →out:0\n  │ generated-api-smoke.testql.toon.yaml    15L  0C    0m  CC=0.0    ←0\n  │\n  ── zero ──\n     api-gateway/Dockerfile                    0L\n     command-bus/Dockerfile                    0L\n     generators/gen-handlebars/Dockerfile      0L\n     generators/gen-jinja/Dockerfile           0L\n     generators/gen-twig/Dockerfile            0L\n     sync-engine/Dockerfile                    0L\n     ui-runtime/Dockerfile                     0L\n     vfs-fuse/Dockerfile                       0L\n     vfs-webdav/Dockerfile                     0L\n     workers/php/Dockerfile                    0L\n     workers/python/Dockerfile                 0L\n\nCOUPLING:\n                vfs-fuse  vfs-webdav\n    vfs-fuse          ──          ←4\n  vfs-webdav           4          ──\n  CYCLES: none\n\nEXTERNAL:\n  validation: run `vallm batch .` → validation.toon\n  duplication: run `redup scan .` → duplication.toon\n", "is_subdir": false}, {"name": "calls.toon.yaml", "rel_path": "calls.toon.yaml", "path": "calls.toon.yaml", "size": "4.5KB", "icon": "⚙️", "type": "yaml", "type_name": "YAML", "content": "# code2llm call graph | /home/tom/github/semcod/dbos\n# nodes: 37 | edges: 29 | modules: 8\n# CC̄=2.7\n\nHUBS[20]:\n  sync-engine.src.parse\n    CC=40  in:4  out:47  total:51\n  generators.gen-jinja.app.render\n    CC=4  in:0  out:28  total:28\n  workers.python.worker.handle_create_device\n    CC=3  in:0  out:27  total:27\n  sync-engine.src.upsertEntity\n    CC=16  in:5  out:21  total:26\n  vfs-fuse.fuse_fs.PlatformFS._persist\n    CC=11  in:0  out:25  total:25\n  workers.python.worker.handle_change_device_status\n    CC=4  in:0  out:21  total:21\n  vfs-webdav.app.EntityFile._persist\n    CC=9  in:0  out:21  total:21\n  sync-engine.src.client\n    CC=16  in:0  out:20  total:20\n  generators.gen-handlebars.src.client\n    CC=7  in:0  out:15  total:15\n  sync-engine.src.handleFile\n    CC=4  in:0  out:12  total:12\n  generators.gen-jinja.app.preview\n    CC=3  in:0  out:12  total:12\n  vfs-fuse.fuse_fs.db\n    CC=1  in:10  out:1  total:11\n  vfs-fuse.fuse_fs.main\n    CC=3  in:0  out:10  total:10\n  sync-engine.src.main\n    CC=5  in:2  out:7  total:9\n  vfs-fuse.fuse_fs.PlatformFS._load_payload\n    CC=6  in:0  out:8  total:8\n  vfs-webdav.app.EntityFile._load\n    CC=7  in:0  out:8  total:8\n  vfs-fuse.fuse_fs.PlatformFS.layout\n    CC=5  in:0  out:8  total:8\n  vfs-fuse.fuse_fs.PlatformFS.unlink\n    CC=2  in:0  out:7  total:7\n  sync-engine.src.loadMimeRegistry\n    CC=1  in:3  out:4  total:7\n  sync-engine.src.sha256\n    CC=1  in:4  out:3  total:7\n\nMODULES:\n  api-gateway.src  [2 funcs]\n    check  CC=1  out:0\n    validate  CC=2  out:3\n  generators.gen-handlebars.src  [3 funcs]\n    client  CC=7  out:15\n    rendered  CC=1  out:3\n    template  CC=1  out:2\n  generators.gen-jinja.app  [4 funcs]\n    capabilities  CC=2  out:5\n    db  CC=1  out:1\n    preview  CC=3  out:12\n    render  CC=4  out:28\n  sync-engine.src  [9 funcs]\n    client  CC=16  out:20\n    external_id  CC=2  out:5\n    handleFile  CC=4  out:12\n    loadMimeRegistry  CC=1  out:4\n    main  CC=5  out:7\n    parse  CC=40  out:47\n    pathWithoutExt  CC=2  out:5\n    sha256  CC=1  out:3\n    upsertEntity  CC=16  out:21\n  vfs-fuse.fuse_fs  [7 funcs]\n    _list_dir  CC=3  out:5\n    _load_payload  CC=6  out:8\n    _persist  CC=11  out:25\n    layout  CC=5  out:8\n    unlink  CC=2  out:7\n    db  CC=1  out:1\n    main  CC=3  out:10\n  vfs-webdav.app  [7 funcs]\n    _load  CC=7  out:8\n    _persist  CC=9  out:21\n    delete  CC=1  out:4\n    get_member_names  CC=2  out:4\n    __init__  CC=1  out:3\n    db  CC=1  out:1\n    load_directory_layout  CC=3  out:6\n  workers.php.worker  [2 funcs]\n    db  CC=2  out:1\n    handle_render_report  CC=3  out:6\n  workers.python.worker  [3 funcs]\n    db  CC=1  out:1\n    handle_change_device_status  CC=4  out:21\n    handle_create_device  CC=3  out:27\n\nEDGES:\n  vfs-fuse.fuse_fs.PlatformFS.layout → vfs-fuse.fuse_fs.db\n  vfs-fuse.fuse_fs.PlatformFS._load_payload → vfs-fuse.fuse_fs.db\n  vfs-fuse.fuse_fs.PlatformFS._list_dir → vfs-fuse.fuse_fs.db\n  vfs-fuse.fuse_fs.PlatformFS.unlink → vfs-fuse.fuse_fs.db\n  vfs-fuse.fuse_fs.PlatformFS._persist → vfs-fuse.fuse_fs.db\n  vfs-fuse.fuse_fs.main → vfs-fuse.fuse_fs.db\n  vfs-webdav.app.load_directory_layout → vfs-webdav.app.db\n  vfs-webdav.app.EntityFile._load → vfs-fuse.fuse_fs.db\n  vfs-webdav.app.EntityFile._persist → vfs-fuse.fuse_fs.db\n  vfs-webdav.app.EntityFile.delete → vfs-fuse.fuse_fs.db\n  vfs-webdav.app.EntityFolder.get_member_names → vfs-fuse.fuse_fs.db\n  vfs-webdav.app.RootCollection.__init__ → vfs-webdav.app.load_directory_layout\n  workers.php.worker.handle_render_report → workers.php.worker.db\n  workers.python.worker.handle_create_device → workers.python.worker.db\n  workers.python.worker.handle_change_device_status → workers.python.worker.db\n  api-gateway.src.validate → api-gateway.src.check\n  generators.gen-handlebars.src.client → generators.gen-handlebars.src.template\n  generators.gen-handlebars.src.rendered → generators.gen-handlebars.src.template\n  generators.gen-jinja.app.capabilities → generators.gen-jinja.app.db\n  generators.gen-jinja.app.render → generators.gen-jinja.app.db\n  generators.gen-jinja.app.preview → generators.gen-jinja.app.db\n  sync-engine.src.upsertEntity → sync-engine.src.sha256\n  sync-engine.src.client → sync-engine.src.sha256\n  sync-engine.src.handleFile → sync-engine.src.parse\n  sync-engine.src.pathWithoutExt → sync-engine.src.parse\n  sync-engine.src.pathWithoutExt → sync-engine.src.upsertEntity\n  sync-engine.src.external_id → sync-engine.src.parse\n  sync-engine.src.external_id → sync-engine.src.upsertEntity\n  sync-engine.src.main → sync-engine.src.loadMimeRegistry\n", "is_subdir": false}, {"name": "calls.yaml", "rel_path": "calls.yaml", "path": "calls.yaml", "size": "15.2KB", "icon": "⚙️", "type": "yaml", "type_name": "YAML", "content": "project: /home/tom/github/semcod/dbos\ngenerated_from: code2llm call graph analysis\nstats:\n  total_nodes: 37\n  total_edges: 29\n  modules_count: 8\nnodes:\n  workers.python.worker.handle_change_device_status:\n    name: handle_change_device_status\n    module: workers.python.worker\n    line: 98\n    cyclomatic_complexity: 4\n    calls_out: 21\n    calls_in: 0\n  vfs-webdav.app.EntityFile._persist:\n    name: _persist\n    module: vfs-webdav.app\n    line: 168\n    cyclomatic_complexity: 9\n    calls_out: 21\n    calls_in: 0\n  api-gateway.src.check:\n    name: check\n    module: api-gateway.src\n    line: 54\n    cyclomatic_complexity: 1\n    calls_out: 0\n    calls_in: 1\n  sync-engine.src.pathWithoutExt:\n    name: pathWithoutExt\n    module: sync-engine.src\n    line: 254\n    cyclomatic_complexity: 2\n    calls_out: 5\n    calls_in: 0\n  vfs-webdav.app.RootCollection.__init__:\n    name: __init__\n    module: vfs-webdav.app\n    line: 305\n    cyclomatic_complexity: 1\n    calls_out: 3\n    calls_in: 0\n  generators.gen-handlebars.src.rendered:\n    name: rendered\n    module: generators.gen-handlebars.src\n    line: 86\n    cyclomatic_complexity: 1\n    calls_out: 3\n    calls_in: 0\n  sync-engine.src.parse:\n    name: parse\n    module: sync-engine.src\n    line: 79\n    cyclomatic_complexity: 40\n    calls_out: 47\n    calls_in: 4\n  sync-engine.src.external_id:\n    name: external_id\n    module: sync-engine.src\n    line: 255\n    cyclomatic_complexity: 2\n    calls_out: 5\n    calls_in: 0\n  vfs-fuse.fuse_fs.PlatformFS._load_payload:\n    name: _load_payload\n    module: vfs-fuse.fuse_fs\n    line: 99\n    cyclomatic_complexity: 6\n    calls_out: 8\n    calls_in: 0\n  sync-engine.src.client:\n    name: client\n    module: sync-engine.src\n    line: 136\n    cyclomatic_complexity: 16\n    calls_out: 20\n    calls_in: 0\n  vfs-fuse.fuse_fs.PlatformFS.unlink:\n    name: unlink\n    module: vfs-fuse.fuse_fs\n    line: 234\n    cyclomatic_complexity: 2\n    calls_out: 7\n    calls_in: 0\n  sync-engine.src.handleFile:\n    name: handleFile\n    module: sync-engine.src\n    line: 235\n    cyclomatic_complexity: 4\n    calls_out: 12\n    calls_in: 0\n  vfs-webdav.app.db:\n    name: db\n    module: vfs-webdav.app\n    line: 59\n    cyclomatic_complexity: 1\n    calls_out: 1\n    calls_in: 1\n  vfs-webdav.app.EntityFile.delete:\n    name: delete\n    module: vfs-webdav.app\n    line: 261\n    cyclomatic_complexity: 1\n    calls_out: 4\n    calls_in: 0\n  api-gateway.src.validate:\n    name: validate\n    module: api-gateway.src\n    line: 51\n    cyclomatic_complexity: 2\n    calls_out: 3\n    calls_in: 0\n  generators.gen-jinja.app.capabilities:\n    name: capabilities\n    module: generators.gen-jinja.app\n    line: 76\n    cyclomatic_complexity: 2\n    calls_out: 5\n    calls_in: 0\n  workers.python.worker.db:\n    name: db\n    module: workers.python.worker\n    line: 33\n    cyclomatic_complexity: 1\n    calls_out: 1\n    calls_in: 2\n  vfs-fuse.fuse_fs.PlatformFS._list_dir:\n    name: _list_dir\n    module: vfs-fuse.fuse_fs\n    line: 124\n    cyclomatic_complexity: 3\n    calls_out: 5\n    calls_in: 0\n  vfs-fuse.fuse_fs.PlatformFS._persist:\n    name: _persist\n    module: vfs-fuse.fuse_fs\n    line: 252\n    cyclomatic_complexity: 11\n    calls_out: 25\n    calls_in: 0\n  generators.gen-handlebars.src.client:\n    name: client\n    module: generators.gen-handlebars.src\n    line: 61\n    cyclomatic_complexity: 7\n    calls_out: 15\n    calls_in: 0\n  vfs-webdav.app.EntityFolder.get_member_names:\n    name: get_member_names\n    module: vfs-webdav.app\n    line: 282\n    cyclomatic_complexity: 2\n    calls_out: 4\n    calls_in: 0\n  vfs-webdav.app.EntityFile._load:\n    name: _load\n    module: vfs-webdav.app\n    line: 101\n    cyclomatic_complexity: 7\n    calls_out: 8\n    calls_in: 0\n  vfs-fuse.fuse_fs.db:\n    name: db\n    module: vfs-fuse.fuse_fs\n    line: 47\n    cyclomatic_complexity: 1\n    calls_out: 1\n    calls_in: 10\n  generators.gen-handlebars.src.template:\n    name: template\n    module: generators.gen-handlebars.src\n    line: 85\n    cyclomatic_complexity: 1\n    calls_out: 2\n    calls_in: 2\n  workers.php.worker.db:\n    name: db\n    module: workers.php.worker\n    line: 11\n    cyclomatic_complexity: 2\n    calls_out: 1\n    calls_in: 1\n  generators.gen-jinja.app.render:\n    name: render\n    module: generators.gen-jinja.app\n    line: 91\n    cyclomatic_complexity: 4\n    calls_out: 28\n    calls_in: 0\n  sync-engine.src.upsertEntity:\n    name: upsertEntity\n    module: sync-engine.src\n    line: 135\n    cyclomatic_complexity: 16\n    calls_out: 21\n    calls_in: 5\n  vfs-fuse.fuse_fs.main:\n    name: main\n    module: vfs-fuse.fuse_fs\n    line: 347\n    cyclomatic_complexity: 3\n    calls_out: 10\n    calls_in: 0\n  sync-engine.src.main:\n    name: main\n    module: sync-engine.src\n    line: 272\n    cyclomatic_complexity: 5\n    calls_out: 7\n    calls_in: 2\n  sync-engine.src.loadMimeRegistry:\n    name: loadMimeRegistry\n    module: sync-engine.src\n    line: 65\n    cyclomatic_complexity: 1\n    calls_out: 4\n    calls_in: 3\n  generators.gen-jinja.app.db:\n    name: db\n    module: generators.gen-jinja.app\n    line: 66\n    cyclomatic_complexity: 1\n    calls_out: 1\n    calls_in: 3\n  generators.gen-jinja.app.preview:\n    name: preview\n    module: generators.gen-jinja.app\n    line: 175\n    cyclomatic_complexity: 3\n    calls_out: 12\n    calls_in: 0\n  sync-engine.src.sha256:\n    name: sha256\n    module: sync-engine.src\n    line: 72\n    cyclomatic_complexity: 1\n    calls_out: 3\n    calls_in: 4\n  workers.python.worker.handle_create_device:\n    name: handle_create_device\n    module: workers.python.worker\n    line: 45\n    cyclomatic_complexity: 3\n    calls_out: 27\n    calls_in: 0\n  workers.php.worker.handle_render_report:\n    name: handle_render_report\n    module: workers.php.worker\n    line: 77\n    cyclomatic_complexity: 3\n    calls_out: 6\n    calls_in: 0\n  vfs-webdav.app.load_directory_layout:\n    name: load_directory_layout\n    module: vfs-webdav.app\n    line: 67\n    cyclomatic_complexity: 3\n    calls_out: 6\n    calls_in: 1\n  vfs-fuse.fuse_fs.PlatformFS.layout:\n    name: layout\n    module: vfs-fuse.fuse_fs\n    line: 68\n    cyclomatic_complexity: 5\n    calls_out: 8\n    calls_in: 0\nedges:\n- caller: vfs-fuse.fuse_fs.PlatformFS.layout\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-fuse.fuse_fs.PlatformFS._load_payload\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-fuse.fuse_fs.PlatformFS._list_dir\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-fuse.fuse_fs.PlatformFS.unlink\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-fuse.fuse_fs.PlatformFS._persist\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-fuse.fuse_fs.main\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-webdav.app.load_directory_layout\n  callee: vfs-webdav.app.db\n  call_type: resolved\n- caller: vfs-webdav.app.EntityFile._load\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-webdav.app.EntityFile._persist\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-webdav.app.EntityFile.delete\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-webdav.app.EntityFolder.get_member_names\n  callee: vfs-fuse.fuse_fs.db\n  call_type: resolved\n- caller: vfs-webdav.app.RootCollection.__init__\n  callee: vfs-webdav.app.load_directory_layout\n  call_type: resolved\n- caller: workers.php.worker.handle_render_report\n  callee: workers.php.worker.db\n  call_type: resolved\n- caller: workers.python.worker.handle_create_device\n  callee: workers.python.worker.db\n  call_type: resolved\n- caller: workers.python.worker.handle_change_device_status\n  callee: workers.python.worker.db\n  call_type: resolved\n- caller: api-gateway.src.validate\n  callee: api-gateway.src.check\n  call_type: resolved\n- caller: generators.gen-handlebars.src.client\n  callee: generators.gen-handlebars.src.template\n  call_type: resolved\n- caller: generators.gen-handlebars.src.rendered\n  callee: generators.gen-handlebars.src.template\n  call_type: resolved\n- caller: generators.gen-jinja.app.capabilities\n  callee: generators.gen-jinja.app.db\n  call_type: resolved\n- caller: generators.gen-jinja.app.render\n  callee: generators.gen-jinja.app.db\n  call_type: resolved\n- caller: generators.gen-jinja.app.preview\n  callee: generators.gen-jinja.app.db\n  call_type: resolved\n- caller: sync-engine.src.upsertEntity\n  callee: sync-engine.src.sha256\n  call_type: resolved\n- caller: sync-engine.src.client\n  callee: sync-engine.src.sha256\n  call_type: resolved\n- caller: sync-engine.src.handleFile\n  callee: sync-engine.src.parse\n  call_type: resolved\n- caller: sync-engine.src.pathWithoutExt\n  callee: sync-engine.src.parse\n  call_type: resolved\n- caller: sync-engine.src.pathWithoutExt\n  callee: sync-engine.src.upsertEntity\n  call_type: resolved\n- caller: sync-engine.src.external_id\n  callee: sync-engine.src.parse\n  call_type: resolved\n- caller: sync-engine.src.external_id\n  callee: sync-engine.src.upsertEntity\n  call_type: resolved\n- caller: sync-engine.src.main\n  callee: sync-engine.src.loadMimeRegistry\n  call_type: resolved\nmodules:\n  api-gateway.src:\n  - api-gateway.src.check\n  - api-gateway.src.validate\n  generators.gen-handlebars.src:\n  - generators.gen-handlebars.src.client\n  - generators.gen-handlebars.src.rendered\n  - generators.gen-handlebars.src.template\n  generators.gen-jinja.app:\n  - generators.gen-jinja.app.capabilities\n  - generators.gen-jinja.app.db\n  - generators.gen-jinja.app.preview\n  - generators.gen-jinja.app.render\n  sync-engine.src:\n  - sync-engine.src.client\n  - sync-engine.src.external_id\n  - sync-engine.src.handleFile\n  - sync-engine.src.loadMimeRegistry\n  - sync-engine.src.main\n  - sync-engine.src.parse\n  - sync-engine.src.pathWithoutExt\n  - sync-engine.src.sha256\n  - sync-engine.src.upsertEntity\n  vfs-fuse.fuse_fs:\n  - vfs-fuse.fuse_fs.PlatformFS._list_dir\n  - vfs-fuse.fuse_fs.PlatformFS._load_payload\n  - vfs-fuse.fuse_fs.PlatformFS._persist\n  - vfs-fuse.fuse_fs.PlatformFS.layout\n  - vfs-fuse.fuse_fs.PlatformFS.unlink\n  - vfs-fuse.fuse_fs.db\n  - vfs-fuse.fuse_fs.main\n  vfs-webdav.app:\n  - vfs-webdav.app.EntityFile._load\n  - vfs-webdav.app.EntityFile._persist\n  - vfs-webdav.app.EntityFile.delete\n  - vfs-webdav.app.EntityFolder.get_member_names\n  - vfs-webdav.app.RootCollection.__init__\n  - vfs-webdav.app.db\n  - vfs-webdav.app.load_directory_layout\n  workers.php.worker:\n  - workers.php.worker.db\n  - workers.php.worker.handle_render_report\n  workers.python.worker:\n  - workers.python.worker.db\n  - workers.python.worker.handle_change_device_status\n  - workers.python.worker.handle_create_device\nentry_points:\n- README.UNIQUE\n- SUMD.build_app\n- SUMD.capabilities\n- SUMD.db\n- SUMD.execute\n- SUMD.handle_change_device_status\n- SUMD.handle_create_device\n- SUMD.handle_render_article\n- SUMD.health\n- SUMD.load_directory_layout\n- SUMD.main\n- SUMD.preview\n- SUMD.render\n- api-gateway.src.ajv\n- api-gateway.src.app\n- api-gateway.src.auth\n- api-gateway.src.body\n- api-gateway.src.canAccess\n- api-gateway.src.checksum\n- api-gateway.src.client\n- api-gateway.src.content\n- api-gateway.src.contentTable\n- api-gateway.src.decodeExternalId\n- api-gateway.src.decodedId\n- api-gateway.src.def\n- api-gateway.src.e\n- api-gateway.src.entityId\n- api-gateway.src.h\n- api-gateway.src.limit\n- api-gateway.src.loadCaches\n- api-gateway.src.loadEntity\n- api-gateway.src.loaded\n- api-gateway.src.m\n- api-gateway.src.mime\n- api-gateway.src.mimeCache\n- api-gateway.src.offset\n- api-gateway.src.orderBy\n- api-gateway.src.pool\n- api-gateway.src.r\n- api-gateway.src.s\n- api-gateway.src.schemaCache\n- api-gateway.src.spec\n- api-gateway.src.table\n- api-gateway.src.token\n- api-gateway.src.u\n- api-gateway.src.updated\n- api-gateway.src.v\n- api-gateway.src.validate\n- command-bus.src.app\n- command-bus.src.commandId\n- command-bus.src.pool\n- command-bus.src.resolveRuntime\n- command-bus.src.result\n- command-bus.src.runtime\n- command-bus.src.runtimeUrl\n- command-bus.src.targetUrl\n- command-bus.src.workerResp\n- generators.gen-handlebars.src.app\n- generators.gen-handlebars.src.checksum\n- generators.gen-handlebars.src.client\n- generators.gen-handlebars.src.html\n- generators.gen-handlebars.src.pool\n- generators.gen-handlebars.src.rendered\n- generators.gen-handlebars.src.templateSrc\n- generators.gen-jinja.app.capabilities\n- generators.gen-jinja.app.health\n- generators.gen-jinja.app.preview\n- generators.gen-jinja.app.render\n- generators.gen-twig.index.db\n- generators.gen-twig.index.json_out\n- project.map.toon.build_app\n- project.map.toon.capabilities\n- project.map.toon.db\n- project.map.toon.execute\n- project.map.toon.handle_change_device_status\n- project.map.toon.handle_create_device\n- project.map.toon.handle_render_article\n- project.map.toon.health\n- project.map.toon.load_directory_layout\n- project.map.toon.main\n- project.map.toon.preview\n- project.map.toon.render\n- sync-engine.src.body\n- sync-engine.src.buf\n- sync-engine.src.checksum\n- sync-engine.src.checksumBase\n- sync-engine.src.client\n- sync-engine.src.dir\n- sync-engine.src.dirMap\n- sync-engine.src.entityId\n- sync-engine.src.ext\n- sync-engine.src.external_id\n- sync-engine.src.fm\n- sync-engine.src.handleFile\n- sync-engine.src.mime\n- sync-engine.src.mimeRegistry\n- sync-engine.src.parsed\n- sync-engine.src.parser\n- sync-engine.src.parts\n- sync-engine.src.pathWithoutExt\n- sync-engine.src.pool\n- sync-engine.src.rel\n- sync-engine.src.root\n- sync-engine.src.text\n- vfs-fuse.SUMD.db\n- vfs-fuse.SUMD.main\n- vfs-fuse.fuse_fs.PlatformFS.__init__\n- vfs-fuse.fuse_fs.PlatformFS._list_dir\n- vfs-fuse.fuse_fs.PlatformFS._load_payload\n- vfs-fuse.fuse_fs.PlatformFS._persist\n- vfs-fuse.fuse_fs.PlatformFS._split\n- vfs-fuse.fuse_fs.PlatformFS.create\n- vfs-fuse.fuse_fs.PlatformFS.flush\n- vfs-fuse.fuse_fs.PlatformFS.getattr\n- vfs-fuse.fuse_fs.PlatformFS.layout\n- vfs-fuse.fuse_fs.PlatformFS.open\n- vfs-fuse.fuse_fs.PlatformFS.read\n- vfs-fuse.fuse_fs.PlatformFS.readdir\n- vfs-fuse.fuse_fs.PlatformFS.release\n- vfs-fuse.fuse_fs.PlatformFS.truncate\n- vfs-fuse.fuse_fs.PlatformFS.unlink\n- vfs-fuse.fuse_fs.PlatformFS.write\n- vfs-fuse.fuse_fs.main\n- vfs-fuse.project.map.toon.db\n- vfs-fuse.project.map.toon.main\n- vfs-webdav.SUMD.build_app\n- vfs-webdav.SUMD.db\n- vfs-webdav.SUMD.load_directory_layout\n- vfs-webdav.app.EntityFile.__init__\n- vfs-webdav.app.EntityFile._load\n- vfs-webdav.app.EntityFile._persist\n- vfs-webdav.app.EntityFile.begin_write\n- vfs-webdav.app.EntityFile.delete\n- vfs-webdav.app.EntityFile.end_write\n- vfs-webdav.app.EntityFile.get_content\n- vfs-webdav.app.EntityFile.get_content_length\n- vfs-webdav.app.EntityFile.get_content_type\n- vfs-webdav.app.EntityFile.get_display_name\n- vfs-webdav.app.EntityFile.get_etag\n- vfs-webdav.app.EntityFile.get_last_modified\n- vfs-webdav.app.EntityFile.support_etag\n- vfs-webdav.app.EntityFile.support_ranges\n- vfs-webdav.app.EntityFolder.__init__\n- vfs-webdav.app.EntityFolder.get_member\n- vfs-webdav.app.EntityFolder.get_member_names\n- vfs-webdav.app.EntityFolder.support_recursive_delete\n- vfs-webdav.app.PlatformProvider.get_resource_inst\n- vfs-webdav.app.RootCollection.__init__\n- vfs-webdav.app.RootCollection.get_member\n- vfs-webdav.app.RootCollection.get_member_names\n- vfs-webdav.app.build_app\n- vfs-webdav.project.map.toon.build_app\n- vfs-webdav.project.map.toon.db\n- vfs-webdav.project.map.toon.load_directory_layout\n- workers.php.worker.handle_render_page\n- workers.php.worker.handle_render_report\n- workers.php.worker.json_out\n- workers.python.worker.execute\n- workers.python.worker.handle_change_device_status\n- workers.python.worker.handle_create_device\n- workers.python.worker.handle_render_article\n- workers.python.worker.health\n", "is_subdir": false}, {"name": "duplication.toon.yaml", "rel_path": "duplication.toon.yaml", "path": "duplication.toon.yaml", "size": "183B", "icon": "⚙️", "type": "yaml", "type_name": "YAML", "content": "# redup/duplication | 0 groups | 3f 952L | 2026-04-24\n\nSUMMARY:\n  files_scanned: 3\n  total_lines:   952\n  dup_groups:    0\n  dup_fragments: 0\n  saved_lines:   0\n  scan_ms:       2196\n", "is_subdir": false}, {"name": "evolution.toon.yaml", "rel_path": "evolution.toon.yaml", "path": "evolution.toon.yaml", "size": "1.9KB", "icon": "⚙️", "type": "yaml", "type_name": "YAML", "content": "# code2llm/evolution | 175 func | 17f | 2026-04-24\n\nNEXT[5] (ranked by impact):\n  [1] !! SPLIT-FUNC      parse  CC=40  fan=47\n      WHY: CC=40 exceeds 15\n      EFFORT: ~1h  IMPACT: 1880\n\n  [2] !! SPLIT-FUNC      body  CC=32  fan=43\n      WHY: CC=32 exceeds 15\n      EFFORT: ~1h  IMPACT: 1376\n\n  [3] !  SPLIT-FUNC      upsertEntity  CC=16  fan=21\n      WHY: CC=16 exceeds 15\n      EFFORT: ~1h  IMPACT: 336\n\n  [4] !  SPLIT-FUNC      client  CC=16  fan=20\n      WHY: CC=16 exceeds 15\n      EFFORT: ~1h  IMPACT: 320\n\n  [5] !  SPLIT-FUNC      client  CC=15  fan=18\n      WHY: CC=15 exceeds 15\n      EFFORT: ~1h  IMPACT: 270\n\n\nRISKS[0]: none\n\nMETRICS-TARGET:\n  CC̄:          2.7 → ≤1.9\n  max-CC:      40 → ≤20\n  god-modules: 0 → 0\n  high-CC(≥15): 5 → ≤2\n  hub-types:   0 → ≤0\n\nPATTERNS (language parser shared logic):\n  _extract_declarations() in base.py — unified extraction for:\n    - TypeScript: interfaces, types, classes, functions, arrow funcs\n    - PHP: namespaces, traits, classes, functions, includes\n    - Ruby: modules, classes, methods, requires\n    - C++: classes, structs, functions, #includes\n    - C#: classes, interfaces, methods, usings\n    - Java: classes, interfaces, methods, imports\n    - Go: packages, functions, structs\n    - Rust: modules, functions, traits, use statements\n\n  Shared regex patterns per language:\n    - import: language-specific import/require/using patterns\n    - class: class/struct/trait declarations with inheritance\n    - function: function/method signatures with visibility\n    - brace_tracking: for C-family languages ({ })\n    - end_keyword_tracking: for Ruby (module/class/def...end)\n\n  Benefits:\n    - Consistent extraction logic across all languages\n    - Reduced code duplication (~70% reduction in parser LOC)\n    - Easier maintenance: fix once, apply everywhere\n    - Standardized FunctionInfo/ClassInfo models\n\nHISTORY:\n  prev CC̄=3.3 → now CC̄=2.7\n", "is_subdir": false}, {"name": "map.toon.yaml", "rel_path": "map.toon.yaml", "path": "map.toon.yaml", "size": "9.5KB", "icon": "⚙️", "type": "yaml", "type_name": "YAML", "content": "# dbos | 70f 8200L | yaml:15,yml:1,shell:4,md:18,json:5,javascript:4,txt:5,python:4,php:2,conf:1 | 2026-04-24\n# stats: 175 func | 0 cls | 70 mod | CC̄=2.7 | critical:5 | cycles:0\n# alerts[5]: fan-out parse=47; fan-out body=43; CC parse=40; CC body=32; fan-out upsertEntity=21\n# hotspots[5]: parse fan=47; body fan=43; upsertEntity fan=21; client fan=20; client fan=18\n# evolution: CC̄ 3.3→2.7 (improved -0.6)\n# Keys: M=modules, D=details, i=imports, e=exports, c=classes, f=functions, m=methods\nM[70]:\n  CHANGELOG.md,29\n  README.md,282\n  SUMD.md,400\n  SUMR.md,577\n  api-gateway/Dockerfile,7\n  api-gateway/SUMD.md,156\n  api-gateway/SUMR.md,113\n  api-gateway/package.json,16\n  api-gateway/project/map.toon.yaml,10\n  api-gateway/src/index.js,438\n  cdn/nginx.conf,74\n  command-bus/Dockerfile,7\n  command-bus/SUMD.md,151\n  command-bus/SUMR.md,108\n  command-bus/package.json,11\n  command-bus/project/map.toon.yaml,10\n  command-bus/src/index.js,90\n  docker-compose.yml,213\n  generators/gen-handlebars/Dockerfile,7\n  generators/gen-handlebars/package.json,12\n  generators/gen-handlebars/src/index.js,130\n  generators/gen-jinja/Dockerfile,7\n  generators/gen-jinja/app.py,200\n  generators/gen-jinja/requirements.txt,5\n  generators/gen-twig/Dockerfile,17\n  generators/gen-twig/composer.json,6\n  generators/gen-twig/index.php,170\n  goal.yaml,509\n  project.sh,43\n  project/README.md,339\n  project/analysis.toon.yaml,144\n  project/calls.yaml,529\n  project/calls.toon.yaml,123\n  project/context.md,369\n  project/duplication.toon.yaml,9\n  project/evolution.toon.yaml,59\n  project/map.toon.yaml,57\n  project/project.toon.yaml,51\n  project/prompt.txt,49\n  scripts/demo.sh,123\n  scripts/export-service.sh,93\n  sync-engine/Dockerfile,9\n  sync-engine/SUMD.md,156\n  sync-engine/SUMR.md,112\n  sync-engine/package.json,16\n  sync-engine/project/map.toon.yaml,10\n  sync-engine/src/index.js,294\n  testql-scenarios/generated-api-smoke.testql.toon.yaml,15\n  tree.sh,1\n  ui-runtime/Dockerfile,3\n  ui-runtime/SUMD.md,135\n  ui-runtime/SUMR.md,98\n  ui-runtime/project/map.toon.yaml,9\n  vfs-fuse/Dockerfile,13\n  vfs-fuse/SUMD.md,149\n  vfs-fuse/SUMR.md,98\n  vfs-fuse/fuse_fs.py,365\n  vfs-fuse/project/map.toon.yaml,15\n  vfs-fuse/requirements.txt,3\n  vfs-webdav/Dockerfile,7\n  vfs-webdav/SUMD.md,155\n  vfs-webdav/SUMR.md,98\n  vfs-webdav/app.py,387\n  vfs-webdav/project/map.toon.yaml,19\n  vfs-webdav/requirements.txt,4\n  workers/php/Dockerfile,10\n  workers/php/worker.php,92\n  workers/python/Dockerfile,7\n  workers/python/requirements.txt,5\n  workers/python/worker.py,172\nD:\n  sync-engine/src/index.js:\n    i: chokidar,fast-json-patch,fast-xml-parser,gray-matter,js-yaml,node:crypto,node:fs/promises,node:path,pg\n    e: pool,mimeRegistry,loadMimeRegistry,sha256,parse,parser,parsed,root,body,text,fm,upsertEntity,client,entityId,checksumBase,checksum,handleFile,rel,parts,dir,dirMap,ext,mime,pathWithoutExt,external_id,buf,parsed,main\n    pool()\n    mimeRegistry()\n    loadMimeRegistry()\n    sha256()\n    parse()\n    parser()\n    parsed()\n    root()\n    body()\n    text()\n    fm()\n    upsertEntity()\n    client()\n    entityId()\n    checksumBase()\n    checksum()\n    handleFile()\n    rel()\n    parts()\n    dir()\n    dirMap()\n    ext()\n    mime()\n    pathWithoutExt()\n    external_id()\n    buf()\n    parsed()\n    main()\n  api-gateway/src/index.js:\n    i: ajv,ajv-formats,cors,express,jsonwebtoken,node:crypto,pg\n    e: pool,ajv,decodeExternalId,schemaCache,mimeCache,loadCaches,s,m,validate,def,check,canAccess,auth,h,loadEntity,e,mime,contentTable,orderBy,content,app,u,token,limit,offset,decodedId,loaded,decodedId,loaded,decodedId,loaded,client,contentTable,checksum,spec,updated,decodedId,loaded,client,decodedId,decodedId,mime,table,v,client,entityId,checksum,spec,decodedId,loaded,r,body\n    pool()\n    ajv()\n    decodeExternalId()\n    schemaCache()\n    mimeCache()\n    loadCaches()\n    s()\n    m()\n    validate()\n    def()\n    check()\n    canAccess()\n    auth()\n    h()\n    loadEntity()\n    e()\n    mime()\n    contentTable()\n    orderBy()\n    content()\n    app()\n    u()\n    token()\n    limit()\n    offset()\n    decodedId()\n    loaded()\n    decodedId()\n    loaded()\n    decodedId()\n    loaded()\n    client()\n    contentTable()\n    checksum()\n    spec()\n    updated()\n    decodedId()\n    loaded()\n    client()\n    decodedId()\n    decodedId()\n    mime()\n    table()\n    v()\n    client()\n    entityId()\n    checksum()\n    spec()\n    decodedId()\n    loaded()\n    r()\n    body()\n  vfs-fuse/fuse_fs.py:\n    e: PlatformFS,db,main\n    PlatformFS(LoggingMixIn,Operations): __init__(0),layout(0),_split(1),_load_payload(3),_list_dir(1),getattr(2),readdir(2),open(2),create(3),read(4),write(4),truncate(3),flush(2),release(2),unlink(1),_persist(2)  # Virtual filesystem where:\n  /                               ...\n    db()\n    main()\n  vfs-webdav/app.py:\n    e: EntityFile,EntityFolder,RootCollection,PlatformProvider,db,load_directory_layout,build_app\n    EntityFile(DAVNonCollection): __init__(5),_load(0),get_content_length(0),get_content_type(0),get_display_name(0),get_etag(0),support_etag(0),get_last_modified(0),support_ranges(0),get_content(0),begin_write(1),end_write(1),_persist(1),delete(0)  # One row in a content_* table, exposed as a single file...\n    EntityFolder(DAVCollection): __init__(6),get_member_names(0),get_member(1),support_recursive_delete(0)  # A directory that lists all entities of one entity_type as fi...\n    RootCollection(DAVCollection): __init__(2),get_member_names(0),get_member(1)  # Top-level collection: one subfolder per schema_paths row...\n    PlatformProvider(DAVProvider): get_resource_inst(2)  # wsgidav hook — all paths resolve through here...\n    db()\n    load_directory_layout()\n    build_app()\n  generators/gen-handlebars/src/index.js:\n    i: express,handlebars,node:crypto,pg\n    e: pool,app,client,templateSrc,template,rendered,checksum,html\n    pool()\n    app()\n    client()\n    templateSrc()\n    template()\n    rendered()\n    checksum()\n    html()\n  workers/php/worker.php:\n    e: db,json_out,handle_render_page,handle_render_report\n    db()\n    json_out()\n    handle_render_page()\n    handle_render_report()\n  command-bus/src/index.js:\n    i: express,pg\n    e: pool,resolveRuntime,runtimeUrl,app,runtime,commandId,targetUrl,workerResp,result\n    pool()\n    resolveRuntime()\n    runtimeUrl()\n    app()\n    runtime()\n    commandId()\n    targetUrl()\n    workerResp()\n    result()\n  workers/python/worker.py:\n    e: ExecuteRequest,db,health,handle_create_device,handle_change_device_status,handle_render_article,execute\n    ExecuteRequest(BaseModel):\n    db()\n    health()\n    handle_create_device(payload)\n    handle_change_device_status(payload)\n    handle_render_article(payload)\n    execute(req)\n  generators/gen-jinja/app.py:\n    e: db,health,capabilities,render,preview\n    db()\n    health()\n    capabilities()\n    render(external_id)\n    preview(external_id)\n  generators/gen-twig/index.php:\n    i: Twig\\Environment,Twig\\Loader\\ArrayLoader\n    e: db,json_out\n    db()\n    json_out()\n  goal.yaml:\n  docker-compose.yml:\n  tree.sh:\n  CHANGELOG.md:\n  project.sh:\n  README.md:\n    e: UNIQUE\n    UNIQUE()\n  command-bus/package.json:\n  command-bus/Dockerfile:\n  vfs-fuse/requirements.txt:\n  vfs-fuse/Dockerfile:\n  vfs-webdav/requirements.txt:\n  vfs-webdav/Dockerfile:\n  workers/php/Dockerfile:\n  workers/python/requirements.txt:\n  workers/python/Dockerfile:\n  api-gateway/package.json:\n  api-gateway/Dockerfile:\n  scripts/demo.sh:\n  scripts/export-service.sh:\n  generators/gen-handlebars/package.json:\n  generators/gen-handlebars/Dockerfile:\n  generators/gen-twig/composer.json:\n  generators/gen-twig/Dockerfile:\n  generators/gen-jinja/requirements.txt:\n  generators/gen-jinja/Dockerfile:\n  ui-runtime/Dockerfile:\n  sync-engine/package.json:\n  sync-engine/Dockerfile:\n  cdn/nginx.conf:\n  SUMR.md:\n  command-bus/SUMR.md:\n  command-bus/project/map.toon.yaml:\n  vfs-fuse/SUMR.md:\n  command-bus/SUMD.md:\n  api-gateway/project/map.toon.yaml:\n  api-gateway/SUMR.md:\n  api-gateway/SUMD.md:\n  project/calls.toon.yaml:\n  project/context.md:\n  vfs-fuse/project/map.toon.yaml:\n    e: db,main\n    db()\n    main()\n  project/prompt.txt:\n  SUMD.md:\n    e: db,health,capabilities,render,preview,db,main,db,load_directory_layout,build_app,db,health,handle_create_device,handle_change_device_status,handle_render_article,execute\n    db()\n    health()\n    capabilities()\n    render()\n    preview()\n    db()\n    main()\n    db()\n    load_directory_layout()\n    build_app()\n    db()\n    health()\n    handle_create_device()\n    handle_change_device_status()\n    handle_render_article()\n    execute()\n  vfs-webdav/project/map.toon.yaml:\n    e: db,load_directory_layout,build_app\n    db()\n    load_directory_layout()\n    build_app()\n  project/calls.yaml:\n  project/duplication.toon.yaml:\n  testql-scenarios/generated-api-smoke.testql.toon.yaml:\n  vfs-webdav/SUMD.md:\n    e: db,load_directory_layout,build_app\n    db()\n    load_directory_layout()\n    build_app()\n  vfs-fuse/SUMD.md:\n    e: db,main\n    db()\n    main()\n  ui-runtime/SUMR.md:\n  project/analysis.toon.yaml:\n  ui-runtime/project/map.toon.yaml:\n  project/map.toon.yaml:\n    e: db,health,capabilities,render,preview,db,main,db,load_directory_layout,build_app,db,health,handle_create_device,handle_change_device_status,handle_render_article,execute\n    db()\n    health()\n    capabilities()\n    render()\n    preview()\n    db()\n    main()\n    db()\n    load_directory_layout()\n    build_app()\n    db()\n    health()\n    handle_create_device()\n    handle_change_device_status()\n    handle_render_article()\n    execute()\n  ui-runtime/SUMD.md:\n  project/project.toon.yaml:\n  vfs-webdav/SUMR.md:\n  sync-engine/project/map.toon.yaml:\n  sync-engine/SUMR.md:\n  sync-engine/SUMD.md:\n  project/evolution.toon.yaml:\n  project/README.md:\n", "is_subdir": false}, {"name": "project.toon.yaml", "rel_path": "project.toon.yaml", "path": "project.toon.yaml", "size": "2.1KB", "icon": "⚙️", "type": "yaml", "type_name": "YAML", "content": "# dbos | 175 func | 17f | 8403L | md | 2026-04-24\n\nHEALTH:\n  CC̄=2.7  critical=9 (limit:10)  dup=0  cycles=0\n\nALERTS[20]:\n  !!! high_fan_out     parse = 47 (limit:10)\n  !!! high_fan_out     body = 43 (limit:10)\n  !!! cc_exceeded      parse = 40 (limit:15)\n  !!! cc_exceeded      body = 32 (limit:15)\n  !!! high_fan_out     upsertEntity = 21 (limit:10)\n  !!! high_fan_out     client = 20 (limit:10)\n  !!  high_fan_out     client = 18 (limit:10)\n  !!  high_fan_out     render = 18 (limit:10)\n  !!  high_fan_out     PlatformFS._persist = 15 (limit:10)\n  !!  high_fan_out     handle_create_device = 15 (limit:10)\n\nMODULES[70] (top by size):\n  M[SUMR.md] 577L C:0 F:0 CC↑0 D:0 (md)\n  M[project/calls.yaml] 529L C:0 F:0 CC↑0 D:0 (yaml)\n  M[goal.yaml] 509L C:0 F:0 CC↑0 D:0 (yaml)\n  M[api-gateway/src/index.js] 438L C:0 F:36 CC↑15 D:0 (javascript)\n  M[SUMD.md] 400L C:0 F:12 CC↑0 D:0 (md)\n  M[vfs-webdav/app.py] 387L C:4 F:25 CC↑9 D:0 (python)\n  M[project/context.md] 369L C:0 F:0 CC↑0 D:0 (md)\n  M[vfs-fuse/fuse_fs.py] 365L C:1 F:18 CC↑11 D:1 (python)\n  M[project/README.md] 339L C:0 F:0 CC↑0 D:0 (md)\n  M[sync-engine/src/index.js] 294L C:0 F:27 CC↑40 D:0 (javascript)\n  M[README.md] 282L C:0 F:1 CC↑0 D:0 (md)\n  M[docker-compose.yml] 213L C:0 F:0 CC↑0 D:0 (yml)\n  M[generators/gen-jinja/app.py] 200L C:0 F:5 CC↑4 D:0 (python)\n  M[workers/python/worker.py] 172L C:1 F:6 CC↑4 D:0 (python)\n  M[generators/gen-twig/index.php] 170L C:0 F:2 CC↑2 D:0 (php)\n  LANGS: md:18/yaml:15/other:11/json:5/txt:5/javascript:4/python:4/shell:4/php:2/conf:1/yml:1\n\nHOTSPOTS[10]:\n  ★ parse fan=47  // Orchestrates 47 calls\n  ★ body fan=43  // Orchestrates 43 calls\n  ★ upsertEntity fan=21  // Orchestrates 21 calls\n  ★ client fan=20  // Orchestrates 20 calls\n  ★ client fan=18  // Orchestrates 18 calls\n\nREFACTOR[11]:\n  [1] H/L Split parse (CC=40)\n  [2] H/L Split body (CC=32)\n  [3] H/H Split god module SUMR.md (577L, 0 classes)\n  [4] H/H Split god module goal.yaml (509L, 0 classes)\n  [5] H/H Split god module project/calls.yaml (529L, 0 classes)\n\nEVOLUTION:\n  2026-04-24 CC̄=2.7 crit=9 8403L // Automated analysis\n", "is_subdir": false}];
+        let currentFile = null;
+
+        function renderFileList(filter = '') {
+            const list = document.getElementById('fileList');
+            const filtered = files.filter(f =>
+                f.name.toLowerCase().includes(filter.toLowerCase()) ||
+                f.path.toLowerCase().includes(filter.toLowerCase())
+            );
+
+            if (filtered.length === 0) {
+                list.innerHTML = '<div class="empty-state">No files found</div>';
+                return;
+            }
+
+            // Group by type
+            const groups = {};
+            for (const file of filtered) {
+                const type = file.type_name;
+                if (!groups[type]) groups[type] = [];
+                groups[type].push(file);
+            }
+
+            let html = '';
+            for (const [typeName, groupFiles] of Object.entries(groups)) {
+                html += `
+                    <div class="file-group">
+                        <div class="file-group-title">${typeName} Files (${groupFiles.length})</div>
+                        ${groupFiles.map(f => `
+                            <div class="file-item ${currentFile?.name === f.name ? 'active' : ''}"
+                                 onclick="selectFile('${f.name}')">
+                                <span class="file-icon">${f.icon}</span>
+                                <div class="file-info">
+                                    <div class="file-name">${f.name}</div>
+                                    <div class="file-meta">${f.path}</div>
+                                </div>
+                                <span class="file-size">${f.size}</span>
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            list.innerHTML = html;
+        }
+
+        function selectFile(name) {
+            const file = files.find(f => f.name === name);
+            if (!file) return;
+
+            currentFile = file;
+
+            document.getElementById('contentIcon').textContent = file.icon;
+            document.getElementById('contentTitle').textContent = file.name;
+
+            // Actions
+            const actions = document.getElementById('contentActions');
+            actions.innerHTML = `
+                <a href="${file.rel_path}" download class="btn">⬇ Download</a>
+                <a href="${file.rel_path}" target="_blank" class="btn btn-primary">↗ Open Raw</a>
+            `;
+
+            // Content
+            const body = document.getElementById('contentBody');
+            if (file.type === 'markdown') {
+                // Render markdown as HTML using marked.js
+                body.innerHTML = `<div class="markdown-content">${marked.parse(file.content)}</div>`;
+            } else if (file.type === 'html') {
+                // For HTML files, show in iframe for safety
+                body.innerHTML = `<iframe src="${file.rel_path}" style="width:100%;height:100%;border:none;border-radius:0.5rem;"></iframe>`;
+            } else if (file.type === 'image') {
+                // For images, display the actual image
+                body.innerHTML = `<div class="image-preview"><img src="${file.rel_path}" alt="${file.name}" style="max-width:100%;max-height:100%;object-fit:contain;border-radius:0.5rem;"></div>`;
+            } else if (file.type === 'mermaid') {
+                // Render mermaid diagram
+                const diagramId = 'mermaid-diagram-' + Date.now();
+                body.innerHTML = `<div class="mermaid-content"><pre class="mermaid" id="${diagramId}">${file.content}</pre></div>`;
+                // Initialize mermaid on the new element
+                setTimeout(() => {
+                    mermaid.init(undefined, document.getElementById(diagramId));
+                }, 0);
+            } else if (file.type === 'json') {
+                try {
+                    const json = JSON.parse(file.content.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&'));
+                    const formatted = JSON.stringify(json, null, 2);
+                    body.innerHTML = `<pre><code class="language-json">${formatted.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+                    hljs.highlightElement(body.querySelector('code'));
+                } catch {
+                    body.innerHTML = `<pre>${file.content}</pre>`;
+                }
+            } else if (file.type === 'yaml') {
+                // YAML with syntax highlighting
+                body.innerHTML = `<pre><code class="language-yaml">${file.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+                hljs.highlightElement(body.querySelector('code'));
+            } else if (file.type === 'toon') {
+                // TOON with simple highlighting (use ini as closest match for key: value format)
+                body.innerHTML = `<pre><code class="language-ini">${file.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+                hljs.highlightElement(body.querySelector('code'));
+            } else if (file.type === 'code') {
+                // Code files with auto-highlighting
+                body.innerHTML = `<pre><code>${file.content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>`;
+                hljs.highlightElement(body.querySelector('code'));
+            } else {
+                body.innerHTML = `<pre>${file.content}</pre>`;
+            }
+
+            renderFileList(document.getElementById('search').value);
+        }
+
+        function filterFiles(query) {
+            renderFileList(query);
+        }
+
+        function renderStats() {
+            const stats = {};
+            for (const f of files) {
+                stats[f.type_name] = (stats[f.type_name] || 0) + 1;
+            }
+
+            const grid = document.getElementById('statsGrid');
+            grid.innerHTML = Object.entries(stats)
+                .sort((a, b) => b[1] - a[1])
+                .map(([type, count]) => `
+                    <div class="stat-card">
+                        <div class="stat-value">${count}</div>
+                        <div class="stat-label">${type}</div>
+                    </div>
+                `).join('');
+        }
+
+        // Initialize
+        renderStats();
+        renderFileList();
+
+        // Select first file if available
+        if (files.length > 0) {
+            selectFile(files[0].name);
+        }
+    </script>
+</body>
+</html>

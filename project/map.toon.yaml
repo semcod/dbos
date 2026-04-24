@@ -1,0 +1,58 @@
+# dbos | 20f 2967L | less:7,shell:5,javascript:4,python:4 | 2026-04-24
+# stats: 16 func | 6 cls | 20 mod | CC̄=2.1 | critical:0 | cycles:0
+# alerts[5]: CC render=4; CC handle_change_device_status=4; CC preview=3; CC main=3; CC load_directory_layout=3
+# hotspots[5]: render fan=18; handle_create_device fan=15; handle_change_device_status fan=12; preview fan=11; main fan=9
+# evolution: baseline
+# Keys: M=modules, D=details, i=imports, e=exports, c=classes, f=functions, m=methods
+M[20]:
+  api-gateway/app.doql.less,60
+  api-gateway/src/index.js,463
+  app.doql.less,60
+  command-bus/app.doql.less,60
+  command-bus/src/index.js,91
+  generators/gen-handlebars/src/index.js,131
+  generators/gen-jinja/app.py,201
+  project.sh,44
+  scripts/demo.sh,124
+  scripts/export-service.sh,94
+  sync-engine/app.doql.less,60
+  sync-engine/src/index.js,384
+  test-gui.sh,86
+  tree.sh,2
+  ui-runtime/app.doql.less,60
+  vfs-fuse/app.doql.less,60
+  vfs-fuse/fuse_fs.py,366
+  vfs-webdav/app.doql.less,60
+  vfs-webdav/app.py,388
+  workers/python/worker.py,173
+D:
+  generators/gen-jinja/app.py:
+    e: db,health,capabilities,render,preview
+    db()
+    health()
+    capabilities()
+    render(external_id)
+    preview(external_id)
+  vfs-fuse/fuse_fs.py:
+    e: db,main,PlatformFS
+    PlatformFS: __init__(0),layout(0),_split(1),_load_payload(3),_list_dir(1),getattr(2),readdir(2),open(2),create(3),read(4),write(4),truncate(3),flush(2),release(2),unlink(1),_persist(2)  # Virtual filesystem where:
+    db()
+    main()
+  vfs-webdav/app.py:
+    e: db,load_directory_layout,build_app,EntityFile,EntityFolder,RootCollection,PlatformProvider
+    EntityFile: __init__(5),_load(0),get_content_length(0),get_content_type(0),get_display_name(0),get_etag(0),support_etag(0),get_last_modified(0),support_ranges(0),get_content(0),begin_write(1),end_write(1),_persist(1),delete(0)  # One row in a content_* table, exposed as a single file.
+    EntityFolder: __init__(6),get_member_names(0),get_member(1),support_recursive_delete(0)  # A directory that lists all entities of one entity_type as fi
+    RootCollection: __init__(2),get_member_names(0),get_member(1)  # Top-level collection: one subfolder per schema_paths row.
+    PlatformProvider: get_resource_inst(2)  # wsgidav hook — all paths resolve through here.
+    db()
+    load_directory_layout()
+    build_app()
+  workers/python/worker.py:
+    e: db,health,handle_create_device,handle_change_device_status,handle_render_article,execute,ExecuteRequest
+    ExecuteRequest:
+    db()
+    health()
+    handle_create_device(payload)
+    handle_change_device_status(payload)
+    handle_render_article(payload)
+    execute(req)

@@ -1,0 +1,123 @@
+# code2llm call graph | /home/tom/github/semcod/dbos
+# nodes: 37 | edges: 29 | modules: 8
+# CC̄=2.7
+
+HUBS[20]:
+  sync-engine.src.parse
+    CC=40  in:4  out:47  total:51
+  generators.gen-jinja.app.render
+    CC=4  in:0  out:28  total:28
+  workers.python.worker.handle_create_device
+    CC=3  in:0  out:27  total:27
+  sync-engine.src.upsertEntity
+    CC=16  in:5  out:21  total:26
+  vfs-fuse.fuse_fs.PlatformFS._persist
+    CC=11  in:0  out:25  total:25
+  workers.python.worker.handle_change_device_status
+    CC=4  in:0  out:21  total:21
+  vfs-webdav.app.EntityFile._persist
+    CC=9  in:0  out:21  total:21
+  sync-engine.src.client
+    CC=16  in:0  out:20  total:20
+  generators.gen-handlebars.src.client
+    CC=7  in:0  out:15  total:15
+  sync-engine.src.handleFile
+    CC=4  in:0  out:12  total:12
+  generators.gen-jinja.app.preview
+    CC=3  in:0  out:12  total:12
+  vfs-fuse.fuse_fs.db
+    CC=1  in:10  out:1  total:11
+  vfs-fuse.fuse_fs.main
+    CC=3  in:0  out:10  total:10
+  sync-engine.src.main
+    CC=5  in:2  out:7  total:9
+  vfs-fuse.fuse_fs.PlatformFS._load_payload
+    CC=6  in:0  out:8  total:8
+  vfs-webdav.app.EntityFile._load
+    CC=7  in:0  out:8  total:8
+  vfs-fuse.fuse_fs.PlatformFS.layout
+    CC=5  in:0  out:8  total:8
+  vfs-fuse.fuse_fs.PlatformFS.unlink
+    CC=2  in:0  out:7  total:7
+  sync-engine.src.loadMimeRegistry
+    CC=1  in:3  out:4  total:7
+  sync-engine.src.sha256
+    CC=1  in:4  out:3  total:7
+
+MODULES:
+  api-gateway.src  [2 funcs]
+    check  CC=1  out:0
+    validate  CC=2  out:3
+  generators.gen-handlebars.src  [3 funcs]
+    client  CC=7  out:15
+    rendered  CC=1  out:3
+    template  CC=1  out:2
+  generators.gen-jinja.app  [4 funcs]
+    capabilities  CC=2  out:5
+    db  CC=1  out:1
+    preview  CC=3  out:12
+    render  CC=4  out:28
+  sync-engine.src  [9 funcs]
+    client  CC=16  out:20
+    external_id  CC=2  out:5
+    handleFile  CC=4  out:12
+    loadMimeRegistry  CC=1  out:4
+    main  CC=5  out:7
+    parse  CC=40  out:47
+    pathWithoutExt  CC=2  out:5
+    sha256  CC=1  out:3
+    upsertEntity  CC=16  out:21
+  vfs-fuse.fuse_fs  [7 funcs]
+    _list_dir  CC=3  out:5
+    _load_payload  CC=6  out:8
+    _persist  CC=11  out:25
+    layout  CC=5  out:8
+    unlink  CC=2  out:7
+    db  CC=1  out:1
+    main  CC=3  out:10
+  vfs-webdav.app  [7 funcs]
+    _load  CC=7  out:8
+    _persist  CC=9  out:21
+    delete  CC=1  out:4
+    get_member_names  CC=2  out:4
+    __init__  CC=1  out:3
+    db  CC=1  out:1
+    load_directory_layout  CC=3  out:6
+  workers.php.worker  [2 funcs]
+    db  CC=2  out:1
+    handle_render_report  CC=3  out:6
+  workers.python.worker  [3 funcs]
+    db  CC=1  out:1
+    handle_change_device_status  CC=4  out:21
+    handle_create_device  CC=3  out:27
+
+EDGES:
+  vfs-fuse.fuse_fs.PlatformFS.layout → vfs-fuse.fuse_fs.db
+  vfs-fuse.fuse_fs.PlatformFS._load_payload → vfs-fuse.fuse_fs.db
+  vfs-fuse.fuse_fs.PlatformFS._list_dir → vfs-fuse.fuse_fs.db
+  vfs-fuse.fuse_fs.PlatformFS.unlink → vfs-fuse.fuse_fs.db
+  vfs-fuse.fuse_fs.PlatformFS._persist → vfs-fuse.fuse_fs.db
+  vfs-fuse.fuse_fs.main → vfs-fuse.fuse_fs.db
+  vfs-webdav.app.load_directory_layout → vfs-webdav.app.db
+  vfs-webdav.app.EntityFile._load → vfs-fuse.fuse_fs.db
+  vfs-webdav.app.EntityFile._persist → vfs-fuse.fuse_fs.db
+  vfs-webdav.app.EntityFile.delete → vfs-fuse.fuse_fs.db
+  vfs-webdav.app.EntityFolder.get_member_names → vfs-fuse.fuse_fs.db
+  vfs-webdav.app.RootCollection.__init__ → vfs-webdav.app.load_directory_layout
+  workers.php.worker.handle_render_report → workers.php.worker.db
+  workers.python.worker.handle_create_device → workers.python.worker.db
+  workers.python.worker.handle_change_device_status → workers.python.worker.db
+  api-gateway.src.validate → api-gateway.src.check
+  generators.gen-handlebars.src.client → generators.gen-handlebars.src.template
+  generators.gen-handlebars.src.rendered → generators.gen-handlebars.src.template
+  generators.gen-jinja.app.capabilities → generators.gen-jinja.app.db
+  generators.gen-jinja.app.render → generators.gen-jinja.app.db
+  generators.gen-jinja.app.preview → generators.gen-jinja.app.db
+  sync-engine.src.upsertEntity → sync-engine.src.sha256
+  sync-engine.src.client → sync-engine.src.sha256
+  sync-engine.src.handleFile → sync-engine.src.parse
+  sync-engine.src.pathWithoutExt → sync-engine.src.parse
+  sync-engine.src.pathWithoutExt → sync-engine.src.upsertEntity
+  sync-engine.src.external_id → sync-engine.src.parse
+  sync-engine.src.external_id → sync-engine.src.upsertEntity
+  sync-engine.src.main → sync-engine.src.loadMimeRegistry

@@ -26,7 +26,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-platform}
     ports: ["${POSTGRES_PORT:-5432}:5432"]
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - ./postgres-data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U platform -d platform"]
@@ -207,9 +207,6 @@ services:
       postgres: { condition: service_healthy }
     profiles: ["fuse"]             # opt-in: `docker compose --profile fuse up`
     networks: [platform]
-
-volumes:
-  pg_data:
 
 networks:
   platform:

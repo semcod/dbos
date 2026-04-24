@@ -16,9 +16,9 @@ const pool = new pg.Pool({ connectionString: DATABASE_URL });
 // Resolve the target runtime by reading the command's schema definition.
 async function resolveRuntime(commandName, version = 'v1') {
   const { rows } = await pool.query(
-    `SELECT definition FROM schema_registry
-      WHERE kind='command' AND name=$1 AND version=$2`,
-    [commandName, version]);
+    `SELECT definition FROM schemas
+      WHERE kind='command' AND id=$1`,
+    [`cmd_${commandName}_${version}`]);
   if (rows.length === 0) return null;
   return rows[0].definition.target_runtime ?? 'python';
 }

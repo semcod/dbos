@@ -228,3 +228,20 @@ UNION ALL
 SELECT e.id, e.external_id, e.entity_type, e.schema_id, e.primary_mime,
        'content_binary', cb.id, cb.version, cb.created_at
   FROM entities e JOIN content_binary cb ON cb.entity_id = e.id;
+
+-- -----------------------------------------------------------------------------
+-- Thumbnails table for storing 64px preview images
+-- -----------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS thumbnails (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  entity_id       UUID NOT NULL REFERENCES entities(id) ON DELETE CASCADE,
+  content_id      UUID,
+  size            VARCHAR(16) NOT NULL, -- '64px', '128px', '256px', etc.
+  mime_type       VARCHAR(100) NOT NULL,
+  data            BYTEA NOT NULL,
+  checksum        VARCHAR(64),
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX idx_thumbnails_entity_size ON thumbnails(entity_id, size);
+CREATE INDEX idx_thumbnails_content ON thumbnails(content_id);

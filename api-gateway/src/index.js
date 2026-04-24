@@ -31,9 +31,10 @@ const pool = new pg.Pool({ connectionString: DATABASE_URL });
 const ajv = new Ajv({ allErrors: true, strict: false });
 addFormats(ajv);
 
-// ----------------------------------------------------------------------------
-// Caches refreshed at startup (small datasets — reload on demand in production)
-// ----------------------------------------------------------------------------
+// Helper to decode URL-encoded external_id
+function decodeExternalId(id) {
+  return decodeURIComponent(id);
+}
 const schemaCache = new Map();    // schema_id -> definition
 const mimeCache   = new Map();    // mime -> { content_table, ... }
 
@@ -78,8 +79,10 @@ async function canAccess(user, resourceType, action, resourceId = null) {
 
 function auth(req, res, next) {
   const h = req.headers.authorization;
-  if (!h?.startsWith('Bearer ')) return res.status(401).json({ error: 'unauthorized' });
-  try { req.user = jwt.verify(h.slice(7), JWT_SECRET); next(); }
+  const q = req.query.token;
+  const token = h?.startsWith('Bearer ') ? h.slice(7) : q;
+  if (!token) return res.status(401).json({ error: 'unauthorized' });
+  try { req.user = jwt.verify(token, JWT_SECRET); next(); }
   catch { res.status(401).json({ error: 'invalid token' }); }
 }
 
@@ -101,10 +104,12 @@ async function loadEntity(externalId) {
   if (!mime) return { entity: e, content: null };
 
   const contentTable = mime.content_table;
+  // content_binary doesn't have updated_at, use created_at instead
+  const orderBy = contentTable === 'content_binary' ? 'created_at' : 'updated_at';
   const { rows: cRows } = await pool.query(
     `SELECT * FROM ${contentTable}
       WHERE entity_id = $1
-      ORDER BY updated_at DESC LIMIT 1`, [e.id]);
+      ORDER BY ${orderBy} DESC LIMIT 1`, [e.id]);
   const content = cRows[0] ?? null;
 
   // Binary: base64-encode the bytes so JSON response is safe
@@ -180,22 +185,133 @@ app.get('/api/entities', auth, async (req, res) => {
 });
 
 app.get('/api/entities/:externalId', auth, async (req, res) => {
-  const loaded = await loadEntity(req.params.externalId);
+  // Support both path parameter and query parameter for backward compatibility
+  const decodedId = req.params.externalId || req.query.external_id;
+  const loaded = await loadEntity(decodedId);
   if (!loaded) return res.status(404).json({ error: 'not found' });
   if (!(await canAccess(req.user, loaded.entity.entity_type, 'read', loaded.entity.id)))
     return res.status(403).json({ error: 'forbidden' });
   res.json(loaded);
 });
 
+// Alternative routes for entities with slashes in external_id
+app.get('/api/entity', auth, async (req, res) => {
+  const decodedId = req.query.external_id;
+  if (!decodedId) return res.status(400).json({ error: 'external_id query parameter required' });
+  const loaded = await loadEntity(decodedId);
+  if (!loaded) return res.status(404).json({ error: 'not found' });
+  if (!(await canAccess(req.user, loaded.entity.entity_type, 'read', loaded.entity.id)))
+    return res.status(403).json({ error: 'forbidden' });
+  res.json(loaded);
+});
+
+app.patch('/api/entity', auth, async (req, res) => {
+  const decodedId = req.query.external_id;
+  if (!decodedId) return res.status(400).json({ error: 'external_id query parameter required' });
+  
+  const loaded = await loadEntity(decodedId);
+  if (!loaded) return res.status(404).json({ error: 'not found' });
+  if (!(await canAccess(req.user, loaded.entity.entity_type, 'write', loaded.entity.id)))
+    return res.status(403).json({ error: 'forbidden' });
+
+  const { external_id: newExternalId, content } = req.body ?? {};
+  if (!newExternalId && !content) return res.status(400).json({ error: 'external_id or content required' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    if (newExternalId) {
+      await client.query(`UPDATE entities SET external_id = $1 WHERE id = $2`,
+        [newExternalId, loaded.entity.id]);
+    }
+    
+    if (content) {
+      const contentTable = loaded.content_table;
+      const checksum = crypto.createHash('sha256').update(JSON.stringify(content)).digest('hex');
+      
+      const updateByTable = {
+        content_json: [`UPDATE content_json SET data = $1, checksum = $2 WHERE entity_id = $3`,
+                       [content.data ?? content, checksum, loaded.entity.id]],
+        content_html: [`UPDATE content_html SET body = $1, checksum = $2 WHERE entity_id = $3`,
+                       [content.body ?? '', checksum, loaded.entity.id]],
+        content_markdown: [`UPDATE content_markdown SET body = $1, checksum = $2 WHERE entity_id = $3`,
+                           [content.body ?? '', checksum, loaded.entity.id]],
+        content_yaml: [`UPDATE content_yaml SET data = $1, checksum = $2 WHERE entity_id = $3`,
+                       [content.data ?? content, checksum, loaded.entity.id]],
+        content_xml: [`UPDATE content_xml SET data = $1, checksum = $2 WHERE entity_id = $3`,
+                      [content.data ?? content, checksum, loaded.entity.id]],
+        content_binary: [`UPDATE content_binary SET bytes = $1, checksum = $2 WHERE entity_id = $3`,
+                         [Buffer.from(content.bytes_base64 ?? '', 'base64'), checksum, loaded.entity.id]],
+      };
+      
+      const spec = updateByTable[contentTable];
+      if (spec) await client.query(spec[0], spec[1]);
+    }
+    
+    await client.query('COMMIT');
+    const updated = await loadEntity(newExternalId || decodedId);
+    res.json({ entity: updated.entity, content: updated.content });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    if (err.code === '23505') return res.status(409).json({ error: 'external_id already exists' });
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.delete('/api/entity', auth, async (req, res) => {
+  const decodedId = req.query.external_id;
+  if (!decodedId) return res.status(400).json({ error: 'external_id query parameter required' });
+  
+  const loaded = await loadEntity(decodedId);
+  if (!loaded) return res.status(404).json({ error: 'not found' });
+  if (!(await canAccess(req.user, loaded.entity.entity_type, 'write', loaded.entity.id)))
+    return res.status(403).json({ error: 'forbidden' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query(`DELETE FROM ${loaded.content_table} WHERE entity_id = $1`, [loaded.entity.id]);
+    await client.query(`DELETE FROM entities WHERE id = $1`, [loaded.entity.id]);
+    await client.query('COMMIT');
+    res.json({ deleted: true, external_id: decodedId });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    res.status(500).json({ error: err.message });
+  } finally {
+    client.release();
+  }
+});
+
+// ---------- COMMANDS (forward to bus) ----------
+
 // Fetch the latest rendered HTML for an entity (from any generator).
 app.get('/api/entities/:externalId/html', auth, async (req, res) => {
+  const decodedId = req.params.externalId;
   const { rows } = await pool.query(
     `SELECT ch.body, ch.source, ch.updated_at
        FROM entities e
        JOIN content_html ch ON ch.entity_id = e.id
       WHERE (e.external_id = $1 OR e.id::text = $1)
         AND ch.is_template = FALSE
-      ORDER BY ch.updated_at DESC LIMIT 1`, [req.params.externalId]);
+      ORDER BY ch.updated_at DESC LIMIT 1`, [decodedId]);
+  if (rows.length === 0) return res.status(404).json({ error: 'no rendered html' });
+  res.type('html').send(rows[0].body);
+});
+
+// Alternative route for HTML with slashes in external_id
+app.get('/api/entity/html', auth, async (req, res) => {
+  const decodedId = req.query.external_id;
+  if (!decodedId) return res.status(400).json({ error: 'external_id query parameter required' });
+  const { rows } = await pool.query(
+    `SELECT ch.body, ch.source, ch.updated_at
+       FROM entities e
+       JOIN content_html ch ON ch.entity_id = e.id
+      WHERE (e.external_id = $1 OR e.id::text = $1)
+        AND ch.is_template = FALSE
+      ORDER BY ch.updated_at DESC LIMIT 1`, [decodedId]);
   if (rows.length === 0) return res.status(404).json({ error: 'no rendered html' });
   res.type('html').send(rows[0].body);
 });
@@ -275,6 +391,28 @@ app.post('/api/entities', auth, async (req, res) => {
   }
 });
 
+// Update entity external_id (for moving files)
+app.patch('/api/entities/:externalId', auth, async (req, res) => {
+  const decodedId = req.params.externalId;
+  const { external_id: newExternalId } = req.body ?? {};
+  if (!newExternalId) return res.status(400).json({ error: 'external_id required' });
+
+  const loaded = await loadEntity(decodedId);
+  if (!loaded) return res.status(404).json({ error: 'not found' });
+  if (!(await canAccess(req.user, loaded.entity.entity_type, 'write', loaded.entity.id)))
+    return res.status(403).json({ error: 'forbidden' });
+
+  try {
+    const { rows } = await pool.query(
+      `UPDATE entities SET external_id = $1 WHERE id = $2 RETURNING external_id, entity_type`,
+      [newExternalId, loaded.entity.id]);
+    res.json({ external_id: rows[0].external_id, entity_type: rows[0].entity_type });
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'external_id already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ---------- COMMANDS (forward to bus) ----------
 app.post('/commands/:name', auth, async (req, res) => {
   if (!(await canAccess(req.user, 'command', 'execute')))
@@ -295,6 +433,38 @@ app.get('/audit', auth, async (req, res) => {
     `SELECT id, content_table, entity_id, source, action, created_at
        FROM audit_log ORDER BY created_at DESC LIMIT 100`);
   res.json(rows);
+});
+
+// ---------- THUMBNAILS ----------
+async function serveThumbnail(req, res, externalId) {
+  const size = req.query.size || '64px';
+
+  const { rows } = await pool.query(
+    `SELECT t.data, t.mime_type
+       FROM thumbnails t
+       JOIN entities e ON e.id = t.entity_id
+      WHERE (e.external_id = $1 OR e.id::text = $1) AND t.size = $2`,
+    [externalId, size]);
+
+  if (rows.length === 0) {
+    // Return a 1x1 transparent PNG as placeholder
+    const empty = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==', 'base64');
+    res.type('png').send(empty);
+    return;
+  }
+
+  res.type(rows[0].mime_type || 'image/png').send(rows[0].data);
+}
+
+app.get('/api/thumbnails/:entityId', auth, async (req, res) => {
+  await serveThumbnail(req, res, decodeExternalId(req.params.entityId));
+});
+
+// Alternative for entities with slashes in external_id
+app.get('/api/thumbnail', auth, async (req, res) => {
+  const decodedId = req.query.external_id;
+  if (!decodedId) return res.status(400).json({ error: 'external_id required' });
+  await serveThumbnail(req, res, decodedId);
 });
 
 // ---------- START ----------

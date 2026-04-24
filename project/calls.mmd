@@ -1,0 +1,83 @@
+flowchart LR
+    subgraph api_gateway__src
+        api_gateway__src__check["check"]
+        api_gateway__src__validate["validate"]
+    end
+    subgraph generators__gen_handlebars
+        generators__gen_handlebars__src__rendered["rendered"]
+        generators__gen_handlebars__src__client["client"]
+        generators__gen_handlebars__src__template["template"]
+    end
+    subgraph generators__gen_jinja
+        generators__gen_jinja__app__capabilities["capabilities"]
+        generators__gen_jinja__app__render["render"]
+        generators__gen_jinja__app__db["db"]
+        generators__gen_jinja__app__preview["preview"]
+    end
+    subgraph sync_engine__src
+        sync_engine__src__pathWithoutExt["pathWithoutExt"]
+        sync_engine__src__parse["parse"]
+        sync_engine__src__external_id["external_id"]
+        sync_engine__src__client["client"]
+        sync_engine__src__handleFile["handleFile"]
+        sync_engine__src__upsertEntity["upsertEntity"]
+        sync_engine__src__main["main"]
+        sync_engine__src__loadMimeRegistry["loadMimeRegistry"]
+        sync_engine__src__sha256["sha256"]
+    end
+    subgraph vfs_fuse__fuse_fs
+        vfs_fuse__fuse_fs__PlatformFS___load_payload["_load_payload"]
+        vfs_fuse__fuse_fs__PlatformFS__unlink["unlink"]
+        vfs_fuse__fuse_fs__PlatformFS___list_dir["_list_dir"]
+        vfs_fuse__fuse_fs__PlatformFS___persist["_persist"]
+        vfs_fuse__fuse_fs__db["db"]
+        vfs_fuse__fuse_fs__main["main"]
+        vfs_fuse__fuse_fs__PlatformFS__layout["layout"]
+    end
+    subgraph vfs_webdav__app
+        vfs_webdav__app__EntityFile___persist["_persist"]
+        vfs_webdav__app__RootCollection____init__["__init__"]
+        vfs_webdav__app__db["db"]
+        vfs_webdav__app__EntityFile__delete["delete"]
+        vfs_webdav__app__EntityFolder__get_member_names["get_member_names"]
+        vfs_webdav__app__EntityFile___load["_load"]
+        vfs_webdav__app__load_directory_layout["load_directory_layout"]
+    end
+    subgraph workers__php
+        workers__php__worker__db["db"]
+        workers__php__worker__handle_render_report["handle_render_report"]
+    end
+    subgraph workers__python
+        workers__python__worker__handle_change_device_status["handle_change_device_status"]
+        workers__python__worker__db["db"]
+        workers__python__worker__handle_create_device["handle_create_device"]
+    end
+    vfs_fuse__fuse_fs__PlatformFS__layout --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS___load_payload --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS___list_dir --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS__unlink --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__PlatformFS___persist --> vfs_fuse__fuse_fs__db
+    vfs_fuse__fuse_fs__main --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__load_directory_layout --> vfs_webdav__app__db
+    vfs_webdav__app__EntityFile___load --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__EntityFile___persist --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__EntityFile__delete --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__EntityFolder__get_member_names --> vfs_fuse__fuse_fs__db
+    vfs_webdav__app__RootCollection____init__ --> vfs_webdav__app__load_directory_layout
+    workers__php__worker__handle_render_report --> workers__php__worker__db
+    workers__python__worker__handle_create_device --> workers__python__worker__db
+    workers__python__worker__handle_change_device_status --> workers__python__worker__db
+    api_gateway__src__validate --> api_gateway__src__check
+    generators__gen_handlebars__src__client --> generators__gen_handlebars__src__template
+    generators__gen_handlebars__src__rendered --> generators__gen_handlebars__src__template
+    generators__gen_jinja__app__capabilities --> generators__gen_jinja__app__db
+    generators__gen_jinja__app__render --> generators__gen_jinja__app__db
+    generators__gen_jinja__app__preview --> generators__gen_jinja__app__db
+    sync_engine__src__upsertEntity --> sync_engine__src__sha256
+    sync_engine__src__client --> sync_engine__src__sha256
+    sync_engine__src__handleFile --> sync_engine__src__parse
+    sync_engine__src__pathWithoutExt --> sync_engine__src__parse
+    sync_engine__src__pathWithoutExt --> sync_engine__src__upsertEntity
+    sync_engine__src__external_id --> sync_engine__src__parse
+    sync_engine__src__external_id --> sync_engine__src__upsertEntity
+    sync_engine__src__main --> sync_engine__src__loadMimeRegistry

@@ -1,0 +1,51 @@
+# dbos | 175 func | 17f | 8403L | md | 2026-04-24
+
+HEALTH:
+  CC̄=2.7  critical=9 (limit:10)  dup=0  cycles=0
+
+ALERTS[20]:
+  !!! high_fan_out     parse = 47 (limit:10)
+  !!! high_fan_out     body = 43 (limit:10)
+  !!! cc_exceeded      parse = 40 (limit:15)
+  !!! cc_exceeded      body = 32 (limit:15)
+  !!! high_fan_out     upsertEntity = 21 (limit:10)
+  !!! high_fan_out     client = 20 (limit:10)
+  !!  high_fan_out     client = 18 (limit:10)
+  !!  high_fan_out     render = 18 (limit:10)
+  !!  high_fan_out     PlatformFS._persist = 15 (limit:10)
+  !!  high_fan_out     handle_create_device = 15 (limit:10)
+
+MODULES[70] (top by size):
+  M[SUMR.md] 577L C:0 F:0 CC↑0 D:0 (md)
+  M[project/calls.yaml] 529L C:0 F:0 CC↑0 D:0 (yaml)
+  M[goal.yaml] 509L C:0 F:0 CC↑0 D:0 (yaml)
+  M[api-gateway/src/index.js] 438L C:0 F:36 CC↑15 D:0 (javascript)
+  M[SUMD.md] 400L C:0 F:12 CC↑0 D:0 (md)
+  M[vfs-webdav/app.py] 387L C:4 F:25 CC↑9 D:0 (python)
+  M[project/context.md] 369L C:0 F:0 CC↑0 D:0 (md)
+  M[vfs-fuse/fuse_fs.py] 365L C:1 F:18 CC↑11 D:1 (python)
+  M[project/README.md] 339L C:0 F:0 CC↑0 D:0 (md)
+  M[sync-engine/src/index.js] 294L C:0 F:27 CC↑40 D:0 (javascript)
+  M[README.md] 282L C:0 F:1 CC↑0 D:0 (md)
+  M[docker-compose.yml] 213L C:0 F:0 CC↑0 D:0 (yml)
+  M[generators/gen-jinja/app.py] 200L C:0 F:5 CC↑4 D:0 (python)
+  M[workers/python/worker.py] 172L C:1 F:6 CC↑4 D:0 (python)
+  M[generators/gen-twig/index.php] 170L C:0 F:2 CC↑2 D:0 (php)
+  LANGS: md:18/yaml:15/other:11/json:5/txt:5/javascript:4/python:4/shell:4/php:2/conf:1/yml:1
+
+HOTSPOTS[10]:
+  ★ parse fan=47  // Orchestrates 47 calls
+  ★ body fan=43  // Orchestrates 43 calls
+  ★ upsertEntity fan=21  // Orchestrates 21 calls
+  ★ client fan=20  // Orchestrates 20 calls
+  ★ client fan=18  // Orchestrates 18 calls
+
+REFACTOR[11]:
+  [1] H/L Split parse (CC=40)
+  [2] H/L Split body (CC=32)
+  [3] H/H Split god module SUMR.md (577L, 0 classes)
+  [4] H/H Split god module goal.yaml (509L, 0 classes)
+  [5] H/H Split god module project/calls.yaml (529L, 0 classes)
+
+EVOLUTION:
+  2026-04-24 CC̄=2.7 crit=9 8403L // Automated analysis

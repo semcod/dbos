@@ -1,6 +1,7 @@
 # Byte-compiled / optimized / DLL files
 .idea/
-
+data
+logs
 .env.example
 __pycache__/
 *.py[codz]

@@ -15,6 +15,11 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #f1f5f9; }
   th { background: #f9fafb; font-weight: 600; }
+  .tree { font-family: monospace; font-size: 13px; }
+  .tree-dir { color: #2563eb; cursor: pointer; font-weight: 600; }
+  .tree-file { color: #4b5563; cursor: pointer; }
+  .tree-file:hover { color: #2563eb; text-decoration: underline; }
+  .tree-indent { margin-left: 20px; }
   .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
   .badge.active { background: #dcfce7; color: #166534; }
   .badge.inactive { background: #e5e7eb; color: #374151; }
@@ -22,7 +27,7 @@
   .badge.maintenance { background: #fef3c7; color: #92400e; }
   button { background: #111827; color: #fff; border: 0; padding: 6px 12px; border-radius: 6px; cursor: pointer; font: inherit; }
   button.secondary { background: #e5e7eb; color: #111827; }
-  pre { background: #0f172a; color: #e2e8f0; padding: 14px; border-radius: 6px; overflow: auto; font-size: 12px; }
+  pre { background: #0f2222; color: #e2e8f0; padding: 14px; border-radius: 6px; overflow: auto; font-size: 12px; }
   .login { max-width: 340px; margin: 80px auto; }
   .login input { width: 100%; padding: 8px; margin-bottom: 10px; border: 1px solid #d1d5db; border-radius: 6px; font: inherit; }
   .kv { display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; }
@@ -43,6 +48,8 @@ const state = {
   view:  'list',
   entityTypeFilter: '',
   selected: null,
+  fileViewMode: 'tree', // tree, table, manager, grid
+  selectedFile: null,
 };
 
 async function api(path, opts = {}) {
@@ -57,6 +64,22 @@ async function api(path, opts = {}) {
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
   const ct = r.headers.get('content-type') || '';
   return ct.includes('json') ? r.json() : r.text();
+}
+
+function apiEntity(externalId, opts = {}) {
+  // Use query parameter route if external_id contains slashes
+  if (externalId.includes('/')) {
+    return api(`/api/entity?external_id=${encodeURIComponent(externalId)}`, opts);
+  }
+  return api(`/api/entities/${externalId}`, opts);
+}
+
+function apiEntityHtml(externalId) {
+  // Use query parameter route if external_id contains slashes
+  if (externalId.includes('/')) {
+    return api(`/api/entity/html?external_id=${encodeURIComponent(externalId)}`);
+  }
+  return api(`/api/entities/${externalId}/html`);
 }
 
 function h(html) { document.getElementById('app').innerHTML = html; }
@@ -96,6 +119,7 @@ function header(active) {
     <h1>⚙ Platform OS</h1>
     <nav>
       <a href="#list" class="${active==='list'?'active':''}">Entities</a>
+      <a href="#files" class="${active==='files'?'active':''}">Files</a>
       <a href="#schemas" class="${active==='schemas'?'active':''}">Schemas</a>
       <a href="#mime" class="${active==='mime'?'active':''}">MIME map</a>
       <a href="#audit" class="${active==='audit'?'active':''}">Audit</a>
@@ -149,20 +173,34 @@ async function renderListFiltered() {
 }
 
 async function renderEntity(extId) {
-  const result = await api('/api/entities/' + encodeURIComponent(extId));
+  const result = await apiEntity(extId);
   const { entity, content, content_table } = result;
 
   let contentBlock = '';
   if (content) {
     if (content.body !== undefined) contentBlock = `<pre>${escapeHtml(content.body)}</pre>`;
     else if (content.raw_text) contentBlock = `<pre>${escapeHtml(content.raw_text)}</pre>`;
-    else if (content.data) contentBlock = `<pre>${escapeHtml(JSON.stringify(content.data, null, 2))}</pre>`;
+    else if (content.data) contentBlock = `<pre class="json">${escapeHtml(JSON.stringify(content.data, null, 2))}</pre>`;
     else if (content.bytes) contentBlock = `<p>Binary blob (${content.size_bytes} bytes, ${content.mime})</p>`;
-    else contentBlock = `<pre>${escapeHtml(JSON.stringify(content, null, 2))}</pre>`;
+    else contentBlock = `<pre class="json">${escapeHtml(JSON.stringify(content, null, 2))}</pre>`;
   }
 
   const schema = await api('/schemas/' + entity.schema_id);
   const renderers = schema.renderers || [];
+
+  // Try to fetch rendered HTML automatically for HTML entities
+  let htmlPreview = '';
+  if (entity.primary_mime === 'text/html') {
+    try {
+      const html = await apiEntityHtml(entity.external_id);
+      htmlPreview = `<div class="card">
+        <h3 style="margin-top:0">Rendered HTML Preview</h3>
+        <iframe srcdoc="${escapeHtml(html)}" style="width:100%;height:400px;border:1px solid #e5e7eb;border-radius:4px;"></iframe>
+      </div>`;
+    } catch (e) {
+      htmlPreview = '';
+    }
+  }
 
   h(header('list') + `
     <main>
@@ -180,9 +218,16 @@ async function renderEntity(extId) {
       </div>
 
       <div class="card">
+        <h3 style="margin-top:0">Schema Definition</h3>
+        <pre class="json">${escapeHtml(JSON.stringify(schema.definition, null, 2))}</pre>
+      </div>
+
+      <div class="card">
         <h3 style="margin-top:0">Content</h3>
         ${contentBlock}
       </div>
+
+      ${htmlPreview}
 
       <div class="card">
         <h3 style="margin-top:0">Renderers</h3>
@@ -191,12 +236,13 @@ async function renderEntity(extId) {
           ${renderers.length
             ? renderers.map(r => `<button data-render="${r}">render via ${r}</button>`).join('')
             : '<span class="muted">none</span>'}
-          <button class="secondary" id="btn-view-html">view rendered HTML</button>
+          <button class="secondary" id="btn-view-html">view rendered HTML (new tab)</button>
         </div>
         <div id="render-out"></div>
       </div>
     </main>`);
   wireHeader();
+  highlightJson();
 
   document.querySelectorAll('[data-render]').forEach(b => b.onclick = async () => {
     const gen = b.dataset.render;
@@ -210,7 +256,8 @@ async function renderEntity(extId) {
       const url = `${window.location.protocol}//${window.location.hostname}:${port}/render/${encodeURIComponent(entity.external_id)}`;
       const r = await fetch(url, { method: 'POST' });
       const out = await r.json();
-      document.getElementById('render-out').innerHTML = `<pre>${escapeHtml(JSON.stringify(out, null, 2))}</pre>`;
+      document.getElementById('render-out').innerHTML = `<pre class="json">${escapeHtml(JSON.stringify(out, null, 2))}</pre>`;
+      highlightJson();
     } catch (e) {
       document.getElementById('render-out').innerHTML = `<pre style="color:#b91c1c">${e.message}</pre>`;
     }
@@ -218,7 +265,7 @@ async function renderEntity(extId) {
 
   document.getElementById('btn-view-html').onclick = async () => {
     try {
-      const html = await api('/api/entities/' + encodeURIComponent(entity.external_id) + '/html');
+      const html = await apiEntityHtml(entity.external_id);
       const w = window.open('', '_blank');
       w.document.write(html); w.document.close();
     } catch (e) {
@@ -301,6 +348,376 @@ async function renderAudit() {
   }
 }
 
+async function renderFiles() {
+  const { data } = await api('/api/entities?limit=200');
+  
+  h(header('files') + `
+    <main>
+      <div class="card">
+        <h3 style="margin-top:0">File Browser</h3>
+        <div class="row">
+          <button id="btn-tree-view">Tree View</button>
+          <button id="btn-table-view" class="secondary">Table View</button>
+          <button id="btn-manager-view" class="secondary">File Manager</button>
+          <button id="btn-grid-view" class="secondary">Grid View</button>
+          <button id="btn-create-folder" class="secondary" style="margin-left:auto;">+ Create Folder</button>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;">
+            Icon Size:
+            <select id="icon-size-select" style="padding:4px;">
+              <option value="16" ${state.iconSize === 16 ? 'selected' : ''}>16px</option>
+              <option value="24" ${state.iconSize === 24 ? 'selected' : ''}>24px</option>
+              <option value="32" ${state.iconSize === 32 ? 'selected' : ''}>32px</option>
+              <option value="48" ${state.iconSize === 48 ? 'selected' : ''}>48px</option>
+              <option value="64" ${state.iconSize === 64 ? 'selected' : ''}>64px</option>
+            </select>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;margin-left:16px;">
+            Row Height:
+            <select id="row-height-select" style="padding:4px;">
+              <option value="compact" ${state.rowHeight === 'compact' ? 'selected' : ''}>Compact</option>
+              <option value="normal" ${state.rowHeight === 'normal' ? 'selected' : ''}>Normal</option>
+              <option value="spacious" ${state.rowHeight === 'spacious' ? 'selected' : ''}>Spacious</option>
+            </select>
+          </label>
+        </div>
+        <div id="file-view-container"></div>
+      </div>
+    </main>`);
+  wireHeader();
+  
+  document.getElementById('btn-tree-view').onclick = () => { state.fileViewMode = 'tree'; location.hash = 'files/tree'; };
+  document.getElementById('btn-table-view').onclick = () => { state.fileViewMode = 'table'; location.hash = 'files/table'; };
+  document.getElementById('btn-manager-view').onclick = () => { state.fileViewMode = 'manager'; location.hash = 'files/manager'; };
+  document.getElementById('btn-grid-view').onclick = () => { state.fileViewMode = 'grid'; location.hash = 'files/grid'; };
+  document.getElementById('btn-create-folder').onclick = () => showCreateFolderModal();
+  document.getElementById('icon-size-select').onchange = (e) => { state.iconSize = parseInt(e.target.value); renderFiles(); };
+  document.getElementById('row-height-select').onchange = (e) => { state.rowHeight = e.target.value; renderFiles(); };
+  
+  if (state.fileViewMode === 'tree') renderTreeView(data);
+  else if (state.fileViewMode === 'table') renderTableView(data);
+  else if (state.fileViewMode === 'manager') renderFileManager(data);
+  else if (state.fileViewMode === 'grid') renderGridView(data);
+  else renderTreeView(data);
+}
+
+function showCreateFolderModal() {
+  const folderName = prompt('Enter folder name:');
+  if (!folderName) return;
+  alert(`Folder '${folderName}' will be created when you add a file to it.\n\nCurrently, folders are virtual - they exist when files are placed in them.`);
+}
+
+function renderTreeView(data) {
+  const tree = {};
+  data.forEach(e => {
+    const parts = e.external_id.split('/');
+    let current = tree;
+    parts.forEach((part, i) => {
+      if (!current[part]) {
+        current[part] = i === parts.length - 1 ? { file: e } : {};
+      }
+      if (i < parts.length - 1) {
+        current = current[part];
+      }
+    });
+  });
+
+  const rowHeights = { compact: '24px', normal: '32px', spacious: '48px' };
+  const rowHeight = rowHeights[state.rowHeight];
+
+  function renderTree(obj, indent = 0) {
+    let html = '';
+    const keys = Object.keys(obj).sort();
+    keys.forEach(key => {
+      const node = obj[key];
+      if (node.file) {
+        const e = node.file;
+        html += `<div class="tree-indent" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;">
+          <span onclick="location.href='#entity/${e.external_id}'" style="cursor:pointer;color:#2563eb;">
+            ${getFileThumbnail(e.external_id)}
+          </span>
+          <span class="tree-file" onclick="location.href='#entity/${e.external_id}'">
+            ${key}
+          </span>
+          <span class="muted" style="font-size:11px">(${e.entity_type})</span>
+        </div>`;
+      } else {
+        html += `<div class="tree-indent" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;">
+          <svg width="${state.iconSize}" height="${state.iconSize}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
+          <span class="tree-dir">${key}</span>
+        </div>`;
+        html += renderTree(node, indent + 1);
+      }
+    });
+    return html;
+  }
+
+  document.getElementById('file-view-container').innerHTML = `<div class="tree">${renderTree(tree)}</div>`;
+}
+
+function renderTableView(data) {
+  const rowHeights = { compact: '32px', normal: '40px', spacious: '56px' };
+  const rowHeight = rowHeights[state.rowHeight];
+  
+  document.getElementById('file-view-container').innerHTML = `
+    <table>
+      <thead><tr><th>Path</th><th>Type</th><th>Schema</th><th>MIME</th><th>Updated</th><th>Status</th></tr></thead>
+      <tbody>
+        ${data.map(e => `<tr style="height:${rowHeight}">
+          <td><div style="display:flex;align-items:center;gap:8px;">${getFileThumbnail(e.external_id)}<a href="#entity/${e.external_id}">${e.external_id}</a></div></td>
+          <td>${e.entity_type}</td>
+          <td><code>${e.schema_id}</code></td>
+          <td><code>${e.primary_mime}</code></td>
+          <td class="muted">${new Date(e.updated_at).toLocaleString()}</td>
+          <td><span class="badge ${e.status === 'active' ? 'active' : 'inactive'}">${e.status}</span></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+function renderFileManager(data) {
+  // Group entities by directory
+  const dirs = {};
+  data.forEach(e => {
+    const parts = e.external_id.split('/');
+    if (parts.length > 1) {
+      const dir = parts.slice(0, -1).join('/');
+      if (!dirs[dir]) dirs[dir] = [];
+      dirs[dir].push(e);
+    } else {
+      if (!dirs['']) dirs[''] = [];
+      dirs[''].push(e);
+    }
+  });
+
+  const sortedDirs = Object.keys(dirs).sort();
+  
+  document.getElementById('file-view-container').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;">
+      <div class="card" style="margin:0">
+        <h4 style="margin-top:0">Source</h4>
+        <select id="source-dir" style="width:100%;padding:8px;margin-bottom:8px;">
+          ${sortedDirs.map(d => `<option value="${d}">${d || '(root)'}</option>`).join('')}
+        </select>
+        <div id="source-files" style="max-height:400px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:4px;padding:8px;"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h4 style="margin-top:0">Destination</h4>
+        <select id="dest-dir" style="width:100%;padding:8px;margin-bottom:8px;">
+          ${sortedDirs.map(d => `<option value="${d}">${d || '(root)'}</option>`).join('')}
+        </select>
+        <div id="dest-files" style="max-height:400px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:4px;padding:8px;"></div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <button id="btn-move-file">Move Selected File</button>
+      <button id="btn-edit-file" class="secondary">Edit Selected File</button>
+      <button id="btn-delete-file" class="secondary" style="background:#fee2e2;color:#991b1b">Delete Selected File</button>
+      <span id="move-status" class="muted" style="margin-left:8px"></span>
+    </div>
+    <div id="edit-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;padding:20px;">
+      <div class="card" style="max-width:800px;margin:0 auto;height:80vh;display:flex;flex-direction:column;">
+        <h3 style="margin-top:0">Edit File</h3>
+        <div id="edit-content" style="flex:1;overflow:auto;margin-bottom:16px;"></div>
+        <div class="row">
+          <button id="btn-save-edit">Save</button>
+          <button id="btn-cancel-edit" class="secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  function renderFileList(containerId, dir) {
+    const files = dirs[dir] || [];
+    document.getElementById(containerId).innerHTML = files.map(e => `
+      <div class="file-item" draggable="true" data-external-id="${e.external_id}" 
+           style="padding:8px;margin-bottom:8px;background:#f9fafb;border-radius:4px;cursor:grab;display:flex;align-items:center;gap:8px;">
+        ${getFileThumbnail(e.external_id, 24)}
+        <div style="flex:1;">
+          <div style="font-weight:600">${e.external_id.split('/').pop()}</div>
+          <div class="muted" style="font-size:11px">${e.entity_type} • ${e.primary_mime}</div>
+        </div>
+      </div>
+    `).join('');
+
+    // Add drag events
+    document.querySelectorAll('.file-item').forEach(item => {
+      item.addEventListener('dragstart', (e) => {
+        e.dataTransfer.setData('text/plain', e.target.dataset.externalId);
+        e.target.style.opacity = '0.5';
+      });
+      item.addEventListener('dragend', (e) => {
+        e.target.style.opacity = '1';
+      });
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.file-item').forEach(i => i.style.background = '#f9fafb');
+        item.style.background = '#dbeafe';
+        document.querySelectorAll('.file-item').forEach(i => i.dataset.selected = 'false');
+        item.dataset.selected = 'true';
+        state.selectedFile = item.dataset.externalId;
+      });
+    });
+  }
+
+  document.getElementById('source-dir').onchange = () => renderFileList('source-files', document.getElementById('source-dir').value);
+  document.getElementById('dest-dir').onchange = () => renderFileList('dest-files', document.getElementById('dest-dir').value);
+  
+  renderFileList('source-files', sortedDirs[0]);
+  renderFileList('dest-files', sortedDirs[0]);
+
+  document.getElementById('btn-move-file').onclick = async () => {
+    const selected = document.querySelector('.file-item[data-selected="true"]');
+    if (!selected) {
+      document.getElementById('move-status').textContent = 'Please select a file from source';
+      return;
+    }
+    const externalId = selected.dataset.externalId;
+    const destDir = document.getElementById('dest-dir').value;
+    
+    // Build new external_id
+    const filename = externalId.split('/').pop();
+    const newExternalId = destDir ? `${destDir}/${filename}` : filename;
+    
+    try {
+      await apiEntity(externalId, {
+        method: 'PATCH',
+        body: JSON.stringify({ external_id: newExternalId })
+      });
+      document.getElementById('move-status').textContent = `Moved ${externalId} to ${newExternalId}`;
+      // Refresh
+      const { data: newData } = await api('/api/entities?limit=200');
+      renderFileManager(newData);
+    } catch (e) {
+      document.getElementById('move-status').textContent = `Error: ${e.message}`;
+    }
+  };
+
+  document.getElementById('btn-edit-file').onclick = async () => {
+    const externalId = state.selectedFile;
+    if (!externalId) {
+      document.getElementById('move-status').textContent = 'Please select a file first';
+      return;
+    }
+    
+    try {
+      const result = await apiEntity(externalId);
+      const { entity, content } = result;
+      
+      document.getElementById('edit-modal').style.display = 'block';
+      document.getElementById('edit-content').innerHTML = `
+        <dl class="kv">
+          <dt>File:</dt><dd>${entity.external_id}</dd>
+          <dt>Type:</dt><dd>${entity.entity_type}</dd>
+          <dt>MIME:</dt><dd>${entity.primary_mime}</dd>
+        </dl>
+        <textarea id="content-editor" style="width:100%;height:300px;font-family:monospace;padding:8px;">${content?.body || content?.raw_text || JSON.stringify(content?.data || {}, null, 2)}</textarea>
+      `;
+      
+      document.getElementById('btn-save-edit').onclick = async () => {
+        const newContent = document.getElementById('content-editor').value;
+        try {
+          await apiEntity(externalId, {
+            method: 'PATCH',
+            body: JSON.stringify({ content: { body: newContent } })
+          });
+          document.getElementById('edit-modal').style.display = 'none';
+          document.getElementById('move-status').textContent = 'File saved successfully';
+        } catch (e) {
+          document.getElementById('move-status').textContent = `Error: ${e.message}`;
+        }
+      };
+      
+      document.getElementById('btn-cancel-edit').onclick = () => {
+        document.getElementById('edit-modal').style.display = 'none';
+      };
+    } catch (e) {
+      document.getElementById('move-status').textContent = `Error: ${e.message}`;
+    }
+  };
+
+  document.getElementById('btn-delete-file').onclick = async () => {
+    const externalId = state.selectedFile;
+    if (!externalId) {
+      document.getElementById('move-status').textContent = 'Please select a file first';
+      return;
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${externalId}?`)) return;
+    
+    try {
+      await apiEntity(externalId, { method: 'DELETE' });
+      document.getElementById('move-status').textContent = `Deleted ${externalId}`;
+      const { data: newData } = await api('/api/entities?limit=200');
+      renderFileManager(newData);
+    } catch (e) {
+      document.getElementById('move-status').textContent = `Error: ${e.message}`;
+    }
+  };
+}
+
+function getFileThumbnail(externalId, size = null) {
+  const s = size || state.iconSize;
+  const token = state.token || '';
+  // Always use query-param endpoint so URL is always ?external_id=...&size=...&token=...
+  const qs = token ? `&token=${encodeURIComponent(token)}` : '';
+  return `<img src="${API}/api/thumbnail?external_id=${encodeURIComponent(externalId)}&size=64px${qs}"
+    width="${s}" height="${s}" style="object-fit:cover;border-radius:4px;background:#f3f4f6;"
+    onerror="this.style.opacity='0.3'" alt="" />`;
+}
+
+function renderGridView(data) {
+  const gridSizes = { 16: '80px', 24: '100px', 32: '120px', 48: '150px', 64: '180px' };
+  const gridSize = gridSizes[state.iconSize];
+
+  // Group files by folder (first path segment = folder, rest = subpath)
+  const byFolder = {};
+  data.forEach(e => {
+    const parts = e.external_id.split('/');
+    const folder = parts.length > 1 ? parts[0] : '(root)';
+    if (!byFolder[folder]) byFolder[folder] = [];
+    byFolder[folder].push(e);
+  });
+
+  // Sort folders: (root) first, then alphabetical
+  const folders = Object.keys(byFolder).sort((a, b) => {
+    if (a === '(root)') return -1;
+    if (b === '(root)') return 1;
+    return a.localeCompare(b);
+  });
+
+  document.getElementById('file-view-container').innerHTML = folders.map(folder => {
+    const files = byFolder[folder];
+    const isRoot = folder === '(root)';
+    return `
+      <div style="margin-top:16px;">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid #e5e7eb;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2563eb" stroke-width="2">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+          </svg>
+          <span style="font-weight:700;font-size:14px;color:#2563eb;">${folder}</span>
+          <span class="muted" style="font-size:12px;">${files.length} file${files.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,${gridSize});gap:16px;justify-content:start;">
+          ${files.map(e => {
+            const depth = e.external_id.split('/').length - 1;
+            const indent = depth > 0 ? `<span class="muted" style="font-size:10px;">${'  '.repeat(depth)}</span>` : '';
+            return `
+            <div class="card" style="margin:0;cursor:pointer;text-align:center;padding:16px;position:relative;" onclick="location.href='#entity/${e.external_id}'">
+              ${indent}
+              <div style="margin-bottom:8px;display:flex;justify-content:center;">${getFileThumbnail(e.external_id)}</div>
+              <div style="font-weight:600;font-size:13px;word-break:break-all;">${e.external_id.split('/').pop()}</div>
+              <div class="muted" style="font-size:11px;margin-top:4px;">${e.entity_type}</div>
+              ${depth > 0 ? `<div class="muted" style="font-size:9px;margin-top:2px;">${e.external_id}</div>` : ''}
+            </div>
+          `}).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
 function wireHeader() {
   document.getElementById('logout').onclick = e => {
     e.preventDefault();
@@ -314,6 +731,20 @@ function escapeHtml(s) {
   }[c]));
 }
 
+function highlightJson() {
+  document.querySelectorAll('pre.json').forEach(pre => {
+    let html = pre.innerHTML;
+    // Highlight strings
+    html = html.replace(/"([^"]*)"(?=\s*:)/g, '<span style="color:#d73a49">"$1"</span>');
+    html = html.replace(/"([^"]*)"(?=\s*[,\]\}])/g, '<span style="color:#032f62">"$1"</span>');
+    // Highlight numbers
+    html = html.replace(/:\s*(\d+)/g, ': <span style="color:#005cc5">$1</span>');
+    // Highlight booleans and null
+    html = html.replace(/:\s*(true|false|null)/g, ': <span style="color:#005cc5">$1</span>');
+    pre.innerHTML = html;
+  });
+}
+
 // ---------- router ----------
 async function route() {
   if (!state.token) return renderLogin();
@@ -323,6 +754,12 @@ async function route() {
     if (hash === 'schemas')         return renderSchemas();
     if (hash === 'mime')            return renderMime();
     if (hash === 'audit')           return renderAudit();
+    if (hash.startsWith('files/')) {
+      const parts = hash.split('/');
+      state.fileViewMode = parts[1] || 'tree';
+      return renderFiles();
+    }
+    if (hash === 'files')           return renderFiles();
     return renderList();
   } catch (e) {
     if (e.message.includes('401')) { localStorage.clear(); state.token = null; return renderLogin('Session expired.'); }

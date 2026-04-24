@@ -51,12 +51,14 @@ platform/
 ├─ cdn/nginx.conf                 reverse proxy
 ├─ vfs-webdav/                    WebDAV frontend over content_* tables
 ├─ vfs-fuse/                      FUSE frontend over content_* tables
-├─ data/                          watched by sync-engine
+├─ data/                          watched by sync-engine (nested dirs supported)
 │  ├─ articles/*.md
 │  ├─ devices/*.json
 │  ├─ pages/*.html
+│  ├─ pages/page2/*.html         nested directory example
 │  ├─ scenarios/*.yaml
 │  └─ protocols/*.xml
+├─ logs/                          info.txt, warnings.txt, error.txt
 └─ scripts/
    ├─ demo.sh                     end-to-end walkthrough
    └─ export-service.sh           extract one service + its tables for reuse

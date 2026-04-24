@@ -1,0 +1,144 @@
+# code2llm | 70f 8073L | md:18,yaml:15,json:5,txt:5,shell:4,javascript:4,python:4,php:2,yml:1,conf:1 | 2026-04-24
+# CC̄=2.7 | critical:5/175 | dups:0 | cycles:0
+
+HEALTH[5]:
+  🟡 CC    client CC=15 (limit:15)
+  🟡 CC    parse CC=40 (limit:15)
+  🟡 CC    body CC=32 (limit:15)
+  🟡 CC    upsertEntity CC=16 (limit:15)
+  🟡 CC    client CC=16 (limit:15)
+
+REFACTOR[1]:
+  1. split 5 high-CC methods  (CC>15)
+
+PIPELINES[115]:
+  [1] Src [pool]: pool
+      PURITY: 100% pure
+  [2] Src [resolveRuntime]: resolveRuntime
+      PURITY: 100% pure
+  [3] Src [app]: app
+      PURITY: 100% pure
+  [4] Src [runtime]: runtime
+      PURITY: 100% pure
+  [5] Src [commandId]: commandId
+      PURITY: 100% pure
+
+LAYERS:
+  sync-engine/                    CC̄=6.3    ←in:0  →out:0
+  │ !! index.js                   294L  0C   27m  CC=40     ←0
+  │ SUMD.md                    156L  0C    0m  CC=0.0    ←0
+  │ SUMR.md                    112L  0C    0m  CC=0.0    ←0
+  │ package.json                16L  0C    0m  CC=0.0    ←0
+  │ map.toon.yaml               10L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  vfs-fuse/                       CC̄=3.1    ←in:4  →out:0
+  │ fuse_fs                    365L  1C   18m  CC=11     ←1
+  │ SUMD.md                    149L  0C    2m  CC=0.0    ←0
+  │ SUMR.md                     98L  0C    0m  CC=0.0    ←0
+  │ map.toon.yaml               15L  0C    2m  CC=0.0    ←0
+  │ requirements.txt             3L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  api-gateway/                    CC̄=2.9    ←in:0  →out:0
+  │ !! index.js                   438L  0C   36m  CC=15     ←0
+  │ SUMD.md                    156L  0C    0m  CC=0.0    ←0
+  │ SUMR.md                    113L  0C    0m  CC=0.0    ←0
+  │ package.json                16L  0C    0m  CC=0.0    ←0
+  │ map.toon.yaml               10L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  workers/                        CC̄=2.5    ←in:0  →out:0
+  │ worker                     172L  1C    6m  CC=4      ←0
+  │ worker.php                  92L  0C    4m  CC=5      ←0
+  │ requirements.txt             5L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  generators/                     CC̄=2.1    ←in:0  →out:0
+  │ app                        200L  0C    5m  CC=4      ←0
+  │ index.php                  170L  0C    2m  CC=2      ←0
+  │ index.js                   130L  0C    8m  CC=7      ←0
+  │ package.json                12L  0C    0m  CC=0.0    ←0
+  │ composer.json                6L  0C    0m  CC=0.0    ←0
+  │ requirements.txt             5L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  command-bus/                    CC̄=2.0    ←in:0  →out:0
+  │ SUMD.md                    151L  0C    0m  CC=0.0    ←0
+  │ SUMR.md                    108L  0C    0m  CC=0.0    ←0
+  │ index.js                    90L  0C    9m  CC=4      ←0
+  │ package.json                11L  0C    0m  CC=0.0    ←0
+  │ map.toon.yaml               10L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  vfs-webdav/                     CC̄=1.6    ←in:0  →out:4
+  │ app                        387L  4C   25m  CC=9      ←0
+  │ SUMD.md                    155L  0C    3m  CC=0.0    ←0
+  │ SUMR.md                     98L  0C    0m  CC=0.0    ←0
+  │ map.toon.yaml               19L  0C    3m  CC=0.0    ←0
+  │ requirements.txt             4L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  ./                              CC̄=0.0    ←in:0  →out:0
+  │ !! SUMR.md                    577L  0C    0m  CC=0.0    ←0
+  │ !! goal.yaml                  509L  0C    0m  CC=0.0    ←0
+  │ SUMD.md                    400L  0C   12m  CC=0.0    ←0
+  │ README.md                  282L  0C    1m  CC=0.0    ←0
+  │ docker-compose.yml         213L  0C    0m  CC=0.0    ←0
+  │ project.sh                  43L  0C    0m  CC=0.0    ←0
+  │ CHANGELOG.md                29L  0C    0m  CC=0.0    ←0
+  │ tree.sh                      1L  0C    0m  CC=0.0    ←0
+  │
+  project/                        CC̄=0.0    ←in:0  →out:0
+  │ !! calls.yaml                 529L  0C    0m  CC=0.0    ←0
+  │ context.md                 369L  0C    0m  CC=0.0    ←0
+  │ README.md                  339L  0C    0m  CC=0.0    ←0
+  │ calls.toon.yaml            123L  0C    0m  CC=0.0    ←0
+  │ analysis.toon.yaml         111L  0C    0m  CC=0.0    ←0
+  │ evolution.toon.yaml         59L  0C    0m  CC=0.0    ←0
+  │ map.toon.yaml               57L  0C   12m  CC=0.0    ←0
+  │ project.toon.yaml           51L  0C    0m  CC=0.0    ←0
+  │ prompt.txt                  49L  0C    0m  CC=0.0    ←0
+  │ duplication.toon.yaml        9L  0C    0m  CC=0.0    ←0
+  │
+  scripts/                        CC̄=0.0    ←in:0  →out:0
+  │ demo.sh                    123L  0C    0m  CC=0.0    ←0
+  │ export-service.sh           93L  0C    0m  CC=0.0    ←0
+  │
+  ui-runtime/                     CC̄=0.0    ←in:0  →out:0
+  │ SUMD.md                    135L  0C    0m  CC=0.0    ←0
+  │ SUMR.md                     98L  0C    0m  CC=0.0    ←0
+  │ map.toon.yaml                9L  0C    0m  CC=0.0    ←0
+  │ Dockerfile                   0L  0C    0m  CC=0.0    ←0
+  │
+  cdn/                            CC̄=0.0    ←in:0  →out:0
+  │ nginx.conf                  74L  0C    0m  CC=0.0    ←0
+  │
+  testql-scenarios/               CC̄=0.0    ←in:0  →out:0
+  │ generated-api-smoke.testql.toon.yaml    15L  0C    0m  CC=0.0    ←0
+  │
+  ── zero ──
+     api-gateway/Dockerfile                    0L
+     command-bus/Dockerfile                    0L
+     generators/gen-handlebars/Dockerfile      0L
+     generators/gen-jinja/Dockerfile           0L
+     generators/gen-twig/Dockerfile            0L
+     sync-engine/Dockerfile                    0L
+     ui-runtime/Dockerfile                     0L
+     vfs-fuse/Dockerfile                       0L
+     vfs-webdav/Dockerfile                     0L
+     workers/php/Dockerfile                    0L
+     workers/python/Dockerfile                 0L
+
+COUPLING:
+                vfs-fuse  vfs-webdav
+    vfs-fuse          ──          ←4
+  vfs-webdav           4          ──
+  CYCLES: none
+
+EXTERNAL:
+  validation: run `vallm batch .` → validation.toon
+  duplication: run `redup scan .` → duplication.toon

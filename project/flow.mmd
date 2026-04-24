@@ -1,0 +1,25 @@
+flowchart TD
+
+    %% Entry points (blue)
+    classDef entry fill:#4dabf7,stroke:#1971c2,color:#fff
+
+    subgraph Core
+        README__UNIQUE["UNIQUE"]
+        command_bus__src__pool["pool"]
+        command_bus__src__resolveRuntime["resolveRuntime"]
+        command_bus__src__runtimeUrl["runtimeUrl"]
+        command_bus__src__app["app"]
+        command_bus__src__runtime["runtime"]
+        command_bus__src__commandId["commandId"]
+        command_bus__src__targetUrl["targetUrl"]
+        command_bus__src__workerResp["workerResp"]
+        command_bus__src__result["result"]
+        vfs_fuse__fuse_fs__PlatformFS__layout["layout"]
+        vfs_fuse__fuse_fs__PlatformFS___split["_split"]
+        vfs_fuse__fuse_fs__PlatformFS___load_payload["_load_payload"]
+        vfs_fuse__fuse_fs__PlatformFS___list_dir["_list_dir"]
+        vfs_fuse__fuse_fs__PlatformFS__getattr["getattr"]
+        ...["+147 more"]
+    end
+
+    class README__UNIQUE,command_bus__src__pool,command_bus__src__resolveRuntime,command_bus__src__runtimeUrl,command_bus__src__app,command_bus__src__runtime,command_bus__src__commandId,command_bus__src__targetUrl,command_bus__src__workerResp,command_bus__src__result entry

@@ -14,7 +14,9 @@ import pg from 'pg';
 import yaml from 'js-yaml';
 import matter from 'gray-matter';
 import { XMLParser } from 'fast-xml-parser';
-import { compare as jsonDiff } from 'fast-json-patch';
+import fastJsonPatch from 'fast-json-patch';
+import sharp from 'sharp';
+const { compare: jsonDiff } = fastJsonPatch;
 
 const {
   DATABASE_URL,
@@ -220,6 +222,7 @@ async function upsertEntity({ external_id, entity_type, schema_id, mime }, parse
 
     await client.query('COMMIT');
     console.log(`[sync] ✓ ${external_id} -> content_${parsed.kind}`);
+    return entityId;
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
@@ -229,11 +232,97 @@ async function upsertEntity({ external_id, entity_type, schema_id, mime }, parse
 }
 
 // --------------------------------------------------------------------------
+// Thumbnail generation (64x64 PNG)
+// --------------------------------------------------------------------------
+async function generateThumbnail(absPath, mime, parsed, entityId) {
+  try {
+    let thumbBuffer;
+    const size = 64;
+
+    if (mime?.startsWith('image/')) {
+      // For images: resize actual image to 64x64
+      thumbBuffer = await sharp(absPath)
+        .resize(size, size, { fit: 'cover' })
+        .png()
+        .toBuffer();
+    } else {
+      // For text/HTML/JSON/etc: create a colored preview
+      const bgColors = {
+        'text/html': { r: 230, g: 126, b: 34 },
+        'text/markdown': { r: 52, g: 152, b: 219 },
+        'application/json': { r: 46, g: 204, b: 113 },
+        'application/yaml': { r: 155, g: 89, b: 182 },
+        'application/xml': { r: 149, g: 165, b: 166 },
+        'text/plain': { r: 52, g: 73, b: 94 },
+      };
+      const bg = bgColors[mime] || { r: 100, g: 100, b: 100 };
+
+      // Get preview text (first line or filename)
+      let previewText = '';
+      if (parsed?.body) previewText = String(parsed.body).slice(0, 30);
+      else if (parsed?.raw_text) previewText = String(parsed.raw_text).slice(0, 30);
+      else if (parsed?.data) previewText = JSON.stringify(parsed.data).slice(0, 30);
+      else previewText = path.basename(absPath).slice(0, 20);
+
+      // Create a 64x64 colored image with a lighter top portion for text hint
+      const topColor = { r: Math.min(255, bg.r + 40), g: Math.min(255, bg.g + 40), b: Math.min(255, bg.b + 40), alpha: 1 };
+      thumbBuffer = await sharp({
+        create: {
+          width: size,
+          height: size,
+          channels: 4,
+          background: bg
+        }
+      })
+      .raw()
+      .toBuffer({ resolveWithObject: true })
+      .then(({ data, info }) => {
+        // Draw a lighter top 20px bar as text area hint
+        for (let y = 0; y < 20; y++) {
+          for (let x = 0; x < size; x++) {
+            const idx = (y * size + x) * 4;
+            data[idx] = topColor.r;
+            data[idx + 1] = topColor.g;
+            data[idx + 2] = topColor.b;
+            data[idx + 3] = 255;
+          }
+        }
+        // Add a small white dot pattern to indicate content
+        const dots = previewText.length > 0 ? Math.min(previewText.length, 8) : 3;
+        for (let i = 0; i < dots; i++) {
+          const dx = 8 + (i * 6);
+          const dy = 8;
+          if (dx < size - 4) {
+            const idx = (dy * size + dx) * 4;
+            data[idx] = 255; data[idx+1] = 255; data[idx+2] = 255; data[idx+3] = 200;
+          }
+        }
+        return sharp(data, { raw: info }).png().toBuffer();
+      });
+    }
+
+    // Store in thumbnails table
+    const thumbChecksum = crypto.createHash('sha256').update(thumbBuffer).digest('hex');
+    await pool.query(
+      `INSERT INTO thumbnails (entity_id, size, mime_type, data, checksum)
+       VALUES ($1, '64px', 'image/png', $2, $3)
+       ON CONFLICT (entity_id, size) DO UPDATE
+         SET data = EXCLUDED.data, checksum = EXCLUDED.checksum, updated_at = now()`,
+      [entityId, thumbBuffer, thumbChecksum]
+    );
+    console.log(`[sync] ✓ thumbnail generated for entity ${entityId}`);
+  } catch (err) {
+    console.warn(`[sync] thumbnail generation failed for ${absPath}:`, err.message);
+  }
+}
+
+// --------------------------------------------------------------------------
 // File event handler
 // --------------------------------------------------------------------------
 async function handleFile(absPath) {
   const rel   = path.relative(WATCH_PATH, absPath);
-  const [dir] = rel.split(path.sep);
+  const parts = rel.split(path.sep);
+  const dir   = parts[0];
   const dirMap = DIR_TO_ENTITY[dir];
   if (!dirMap) {
     console.warn(`[sync] ? ignore ${rel} (no entity mapping for '${dir}/')`);
@@ -247,15 +336,20 @@ async function handleFile(absPath) {
     return;
   }
 
-  const external_id = path.basename(absPath, ext);
+  // Use full path (without extension) as external_id to support nested directories
+  // Keep slashes for proper file path display, will be URL-encoded when needed
+  const pathWithoutExt = rel.substring(0, rel.length - ext.length);
+  const external_id = pathWithoutExt;
 
   try {
     const buf    = await fs.readFile(absPath);
     const parsed = await parse(mime, buf, path.basename(absPath));
-    await upsertEntity(
+    const entityId = await upsertEntity(
       { external_id, entity_type: dirMap.entity_type, schema_id: dirMap.schema_id, mime },
       parsed
     );
+    // Generate thumbnail (fire-and-forget)
+    if (entityId) generateThumbnail(absPath, mime, parsed, entityId);
   } catch (err) {
     console.error(`[sync] ✗ ${rel}: ${err.message}`);
   }

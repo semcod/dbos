@@ -36,6 +36,9 @@ function db(): PDO {
 function json_out($data, int $status = 200): void {
     http_response_code($status);
     header('Content-Type: application/json');
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
     echo json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
     exit;
 }
@@ -43,6 +46,15 @@ function json_out($data, int $status = 200): void {
 // ------------- routing --------------
 $path   = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $method = $_SERVER['REQUEST_METHOD'];
+
+// Handle OPTIONS preflight requests
+if ($method === 'OPTIONS') {
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    http_response_code(204);
+    exit;
+}
 
 if ($path === '/health') {
     json_out(['ok' => true, 'service' => $RENDERER_NAME]);
@@ -123,7 +135,7 @@ if (preg_match('#^/render/([^/]+)$#', $path, $m) && $method === 'POST') {
     db()->prepare("
         INSERT INTO audit_log (content_table, entity_id, content_id, source, action, after_state)
         VALUES ('content_html', :e, :h, 'generator', 'render',
-                jsonb_build_object('renderer', :r, 'bytes', :sz))")
+                jsonb_build_object('renderer', :r::text, 'bytes', :sz::int))")
         ->execute([':e' => $tpl['entity_id'], ':h' => $htmlId,
                    ':r' => $RENDERER_NAME, ':sz' => strlen($rendered)]);
 

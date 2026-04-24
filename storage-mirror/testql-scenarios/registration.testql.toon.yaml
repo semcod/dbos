@@ -1,0 +1,14 @@
+# SCENARIO: storage-mirror — primary backend declared, mirrors listable
+# TYPE: api
+
+CONFIG[3]{key, value}:
+  base_url, http://localhost:3000
+  timeout_ms, 5000
+  auth, bearer:${ADMIN_TOKEN}
+
+API[1]{method, endpoint, expected_status}:
+  GET, /api/storage-backends, 200
+
+ASSERT[2]{field, operator, expected}:
+  data[?(@.id=='pg-primary')].driver, ==, postgres
+  data[?(@.id=='pg-primary')].role, ==, primary

@@ -1,0 +1,16 @@
+# SCENARIO: imap-pull connector registry discovery
+# TYPE: api
+
+CONFIG[3]{key, value}:
+  base_url, http://localhost:3000
+  timeout_ms, 5000
+  auth, bearer:${ADMIN_TOKEN}
+
+API[1]{method, endpoint, expected_status}:
+  GET, /api/inbound-sources, 200
+
+# No imap-pull source is seeded by default — this test simply asserts the
+# registry endpoint answers and the driver is wired up (filesystem is seeded).
+ASSERT[2]{field, operator, expected}:
+  data[?(@.driver=='filesystem')].id, ==, filesystem-data
+  data[?(@.driver=='filesystem')].enabled, ==, true

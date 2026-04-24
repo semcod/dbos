@@ -50,6 +50,10 @@ const state = {
   selected: null,
   fileViewMode: 'tree', // tree, table, manager, grid
   selectedFile: null,
+  iconSize: 24, // 16, 24, 32, 48, 64
+  rowHeight: 'normal', // compact, normal, spacious
+  sourceDir: localStorage.getItem('sourceDir') || '',
+  destDir:   localStorage.getItem('destDir')   || '',
 };
 
 async function api(path, opts = {}) {
@@ -123,6 +127,7 @@ function header(active) {
       <a href="#schemas" class="${active==='schemas'?'active':''}">Schemas</a>
       <a href="#mime" class="${active==='mime'?'active':''}">MIME map</a>
       <a href="#audit" class="${active==='audit'?'active':''}">Audit</a>
+      <a href="#connectors" class="${active==='connectors'?'active':''}">Connectors</a>
     </nav>
     <div style="flex:1"></div>
     <span class="muted" style="color:#cbd5e1">${state.user.email} (${state.user.role})</span>
@@ -383,14 +388,34 @@ async function renderFiles() {
           </label>
         </div>
         <div id="file-view-container"></div>
+        <div id="edit-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;padding:20px;">
+          <div class="card" style="max-width:800px;margin:0 auto;height:80vh;display:flex;flex-direction:column;">
+            <h3 style="margin-top:0">Edit File</h3>
+            <div id="edit-content" style="flex:1;overflow:auto;margin-bottom:16px;"></div>
+            <div class="row">
+              <button id="btn-save-edit">Save</button>
+              <button id="btn-cancel-edit" class="secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+        <div id="action-status" class="muted" style="margin-top:8px"></div>
       </div>
     </main>`);
   wireHeader();
   
-  document.getElementById('btn-tree-view').onclick = () => { state.fileViewMode = 'tree'; location.hash = 'files/tree'; };
-  document.getElementById('btn-table-view').onclick = () => { state.fileViewMode = 'table'; location.hash = 'files/table'; };
-  document.getElementById('btn-manager-view').onclick = () => { state.fileViewMode = 'manager'; location.hash = 'files/manager'; };
-  document.getElementById('btn-grid-view').onclick = () => { state.fileViewMode = 'grid'; location.hash = 'files/grid'; };
+  function updateViewButtons() {
+    const views = { tree: 'btn-tree-view', table: 'btn-table-view', manager: 'btn-manager-view', grid: 'btn-grid-view' };
+    Object.entries(views).forEach(([mode, id]) => {
+      const btn = document.getElementById(id);
+      if (btn) btn.className = state.fileViewMode === mode ? '' : 'secondary';
+    });
+  }
+
+  document.getElementById('btn-tree-view').onclick = () => { state.fileViewMode = 'tree'; updateViewButtons(); location.hash = 'files/tree'; };
+  document.getElementById('btn-table-view').onclick = () => { state.fileViewMode = 'table'; updateViewButtons(); location.hash = 'files/table'; };
+  document.getElementById('btn-manager-view').onclick = () => { state.fileViewMode = 'manager'; updateViewButtons(); location.hash = 'files/manager'; };
+  document.getElementById('btn-grid-view').onclick = () => { state.fileViewMode = 'grid'; updateViewButtons(); location.hash = 'files/grid'; };
+  updateViewButtons();
   document.getElementById('btn-create-folder').onclick = () => showCreateFolderModal();
   document.getElementById('icon-size-select').onchange = (e) => { state.iconSize = parseInt(e.target.value); renderFiles(); };
   document.getElementById('row-height-select').onchange = (e) => { state.rowHeight = e.target.value; renderFiles(); };
@@ -400,6 +425,72 @@ async function renderFiles() {
   else if (state.fileViewMode === 'manager') renderFileManager(data);
   else if (state.fileViewMode === 'grid') renderGridView(data);
   else renderTreeView(data);
+}
+
+// Shared action helpers used by all views
+function setActionStatus(msg) {
+  const el = document.getElementById('action-status');
+  if (el) el.textContent = msg;
+}
+
+async function editEntity(externalId) {
+  try {
+    const result = await apiEntity(externalId);
+    const { entity, content } = result;
+
+    document.getElementById('edit-modal').style.display = 'block';
+    document.getElementById('edit-content').innerHTML = `
+      <dl class="kv">
+        <dt>File:</dt><dd>${entity.external_id}</dd>
+        <dt>Type:</dt><dd>${entity.entity_type}</dd>
+        <dt>MIME:</dt><dd>${entity.primary_mime}</dd>
+      </dl>
+      <textarea id="content-editor" style="width:100%;height:300px;font-family:monospace;padding:8px;">${content?.body || content?.raw_text || JSON.stringify(content?.data || {}, null, 2)}</textarea>
+    `;
+
+    document.getElementById('btn-save-edit').onclick = async () => {
+      const newContent = document.getElementById('content-editor').value;
+      try {
+        await apiEntity(externalId, {
+          method: 'PATCH',
+          body: JSON.stringify({ content: { body: newContent } })
+        });
+        document.getElementById('edit-modal').style.display = 'none';
+        setActionStatus('File saved successfully');
+      } catch (e) {
+        setActionStatus(`Error: ${e.message}`);
+      }
+    };
+
+    document.getElementById('btn-cancel-edit').onclick = () => {
+      document.getElementById('edit-modal').style.display = 'none';
+    };
+  } catch (e) {
+    setActionStatus(`Error: ${e.message}`);
+  }
+}
+
+async function deleteEntity(externalId) {
+  if (!confirm(`Delete ${externalId}?`)) return;
+  try {
+    await apiEntity(externalId, { method: 'DELETE' });
+    setActionStatus(`Deleted ${externalId}`);
+    const { data: newData } = await api('/api/entities?limit=200');
+    // Re-render current view
+    if (state.fileViewMode === 'tree') renderTreeView(newData);
+    else if (state.fileViewMode === 'table') renderTableView(newData);
+    else if (state.fileViewMode === 'manager') renderFileManager(newData);
+    else if (state.fileViewMode === 'grid') renderGridView(newData);
+  } catch (e) {
+    setActionStatus(`Error: ${e.message}`);
+  }
+}
+
+function fileActions(externalId) {
+  return `<span style="display:inline-flex;gap:4px;margin-left:auto;">
+    <button class="secondary" style="padding:2px 6px;font-size:11px;" onclick="event.stopPropagation();editEntity('${externalId}')" title="Edit">&#9998;</button>
+    <button class="secondary" style="padding:2px 6px;font-size:11px;background:#fee2e2;color:#991b1b;" onclick="event.stopPropagation();deleteEntity('${externalId}')" title="Delete">&#10005;</button>
+  </span>`;
 }
 
 function showCreateFolderModal() {
@@ -426,14 +517,15 @@ function renderTreeView(data) {
   const rowHeights = { compact: '24px', normal: '32px', spacious: '48px' };
   const rowHeight = rowHeights[state.rowHeight];
 
-  function renderTree(obj, indent = 0) {
+  function renderTree(obj, indent = 0, pathPrefix = '') {
     let html = '';
     const keys = Object.keys(obj).sort();
     keys.forEach(key => {
       const node = obj[key];
+      const fullPath = pathPrefix ? `${pathPrefix}/${key}` : key;
       if (node.file) {
         const e = node.file;
-        html += `<div class="tree-indent" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;">
+        html += `<div class="tree-indent tree-file-row" draggable="true" data-external-id="${e.external_id}" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <span onclick="location.href='#entity/${e.external_id}'" style="cursor:pointer;color:#2563eb;">
             ${getFileThumbnail(e.external_id)}
           </span>
@@ -441,19 +533,57 @@ function renderTreeView(data) {
             ${key}
           </span>
           <span class="muted" style="font-size:11px">(${e.entity_type})</span>
+          ${fileActions(e.external_id)}
         </div>`;
       } else {
-        html += `<div class="tree-indent" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;">
+        html += `<div class="tree-indent tree-folder-row" data-folder-path="${fullPath}" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;">
           <svg width="${state.iconSize}" height="${state.iconSize}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>
           <span class="tree-dir">${key}</span>
         </div>`;
-        html += renderTree(node, indent + 1);
+        html += renderTree(node, indent + 1, fullPath);
       }
     });
     return html;
   }
 
   document.getElementById('file-view-container').innerHTML = `<div class="tree">${renderTree(tree)}</div>`;
+
+  // Wire drag-and-drop for tree view
+  document.querySelectorAll('.tree-file-row').forEach(row => {
+    row.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', row.dataset.externalId);
+      row.style.opacity = '0.5';
+    });
+    row.addEventListener('dragend', () => { row.style.opacity = '1'; });
+  });
+
+  document.querySelectorAll('.tree-folder-row').forEach(row => {
+    row.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      row.style.background = '#dbeafe';
+    });
+    row.addEventListener('dragleave', () => { row.style.background = ''; });
+    row.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      row.style.background = '';
+      const externalId = e.dataTransfer.getData('text/plain');
+      if (!externalId) return;
+      const destDir = row.dataset.folderPath;
+      const filename = externalId.split('/').pop();
+      const newExternalId = destDir ? `${destDir}/${filename}` : filename;
+      try {
+        await apiEntity(externalId, {
+          method: 'PATCH',
+          body: JSON.stringify({ external_id: newExternalId })
+        });
+        setActionStatus(`Moved ${externalId} → ${newExternalId}`);
+        const { data: newData } = await api('/api/entities?limit=200');
+        renderTreeView(newData);
+      } catch (err) {
+        setActionStatus(`Error: ${err.message}`);
+      }
+    });
+  });
 }
 
 function renderTableView(data) {
@@ -462,7 +592,7 @@ function renderTableView(data) {
   
   document.getElementById('file-view-container').innerHTML = `
     <table>
-      <thead><tr><th>Path</th><th>Type</th><th>Schema</th><th>MIME</th><th>Updated</th><th>Status</th></tr></thead>
+      <thead><tr><th>Path</th><th>Type</th><th>Schema</th><th>MIME</th><th>Updated</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
         ${data.map(e => `<tr style="height:${rowHeight}">
           <td><div style="display:flex;align-items:center;gap:8px;">${getFileThumbnail(e.external_id)}<a href="#entity/${e.external_id}">${e.external_id}</a></div></td>
@@ -471,6 +601,7 @@ function renderTableView(data) {
           <td><code>${e.primary_mime}</code></td>
           <td class="muted">${new Date(e.updated_at).toLocaleString()}</td>
           <td><span class="badge ${e.status === 'active' ? 'active' : 'inactive'}">${e.status}</span></td>
+          <td>${fileActions(e.external_id)}</td>
         </tr>`).join('')}
       </tbody>
     </table>
@@ -499,14 +630,14 @@ function renderFileManager(data) {
       <div class="card" style="margin:0">
         <h4 style="margin-top:0">Source</h4>
         <select id="source-dir" style="width:100%;padding:8px;margin-bottom:8px;">
-          ${sortedDirs.map(d => `<option value="${d}">${d || '(root)'}</option>`).join('')}
+          ${sortedDirs.map(d => `<option value="${d}" ${d === state.sourceDir ? 'selected' : ''}>${d || '(root)'}</option>`).join('')}
         </select>
         <div id="source-files" style="max-height:400px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:4px;padding:8px;"></div>
       </div>
       <div class="card" style="margin:0">
         <h4 style="margin-top:0">Destination</h4>
         <select id="dest-dir" style="width:100%;padding:8px;margin-bottom:8px;">
-          ${sortedDirs.map(d => `<option value="${d}">${d || '(root)'}</option>`).join('')}
+          ${sortedDirs.map(d => `<option value="${d}" ${d === state.destDir ? 'selected' : ''}>${d || '(root)'}</option>`).join('')}
         </select>
         <div id="dest-files" style="max-height:400px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:4px;padding:8px;"></div>
       </div>
@@ -517,28 +648,19 @@ function renderFileManager(data) {
       <button id="btn-delete-file" class="secondary" style="background:#fee2e2;color:#991b1b">Delete Selected File</button>
       <span id="move-status" class="muted" style="margin-left:8px"></span>
     </div>
-    <div id="edit-modal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:1000;padding:20px;">
-      <div class="card" style="max-width:800px;margin:0 auto;height:80vh;display:flex;flex-direction:column;">
-        <h3 style="margin-top:0">Edit File</h3>
-        <div id="edit-content" style="flex:1;overflow:auto;margin-bottom:16px;"></div>
-        <div class="row">
-          <button id="btn-save-edit">Save</button>
-          <button id="btn-cancel-edit" class="secondary">Cancel</button>
-        </div>
-      </div>
-    </div>
   `;
 
   function renderFileList(containerId, dir) {
     const files = dirs[dir] || [];
     document.getElementById(containerId).innerHTML = files.map(e => `
-      <div class="file-item" draggable="true" data-external-id="${e.external_id}" 
+      <div class="file-item" draggable="true" data-external-id="${e.external_id}"
            style="padding:8px;margin-bottom:8px;background:#f9fafb;border-radius:4px;cursor:grab;display:flex;align-items:center;gap:8px;">
         ${getFileThumbnail(e.external_id, 24)}
         <div style="flex:1;">
           <div style="font-weight:600">${e.external_id.split('/').pop()}</div>
           <div class="muted" style="font-size:11px">${e.entity_type} • ${e.primary_mime}</div>
         </div>
+        ${fileActions(e.external_id)}
       </div>
     `).join('');
 
@@ -561,11 +683,59 @@ function renderFileManager(data) {
     });
   }
 
-  document.getElementById('source-dir').onchange = () => renderFileList('source-files', document.getElementById('source-dir').value);
-  document.getElementById('dest-dir').onchange = () => renderFileList('dest-files', document.getElementById('dest-dir').value);
-  
-  renderFileList('source-files', sortedDirs[0]);
-  renderFileList('dest-files', sortedDirs[0]);
+  const srcSel = document.getElementById('source-dir');
+  const dstSel = document.getElementById('dest-dir');
+
+  srcSel.onchange = () => {
+    const v = srcSel.value;
+    state.sourceDir = v;
+    localStorage.setItem('sourceDir', v);
+    renderFileList('source-files', v);
+  };
+  dstSel.onchange = () => {
+    const v = dstSel.value;
+    state.destDir = v;
+    localStorage.setItem('destDir', v);
+    renderFileList('dest-files', v);
+  };
+
+  // Make dest-files a drop zone
+  const destEl = document.getElementById('dest-files');
+  destEl.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    destEl.style.background = '#dbeafe';
+    destEl.style.borderColor = '#2563eb';
+  });
+  destEl.addEventListener('dragleave', () => {
+    destEl.style.background = '';
+    destEl.style.borderColor = '#e5e7eb';
+  });
+  destEl.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    destEl.style.background = '';
+    destEl.style.borderColor = '#e5e7eb';
+    const externalId = e.dataTransfer.getData('text/plain');
+    if (!externalId) return;
+    const destDir = document.getElementById('dest-dir').value;
+    const filename = externalId.split('/').pop();
+    const newExternalId = destDir ? `${destDir}/${filename}` : filename;
+    try {
+      await apiEntity(externalId, {
+        method: 'PATCH',
+        body: JSON.stringify({ external_id: newExternalId })
+      });
+      document.getElementById('move-status').textContent = `Moved ${externalId} → ${newExternalId}`;
+      const { data: newData } = await api('/api/entities?limit=200');
+      renderFileManager(newData);
+    } catch (err) {
+      document.getElementById('move-status').textContent = `Error: ${err.message}`;
+    }
+  });
+
+  const initialSrc = sortedDirs.includes(state.sourceDir) ? state.sourceDir : sortedDirs[0];
+  const initialDst = sortedDirs.includes(state.destDir) ? state.destDir : sortedDirs[0];
+  renderFileList('source-files', initialSrc);
+  renderFileList('dest-files', initialDst);
 
   document.getElementById('btn-move-file').onclick = async () => {
     const selected = document.querySelector('.file-item[data-selected="true"]');
@@ -595,65 +765,21 @@ function renderFileManager(data) {
   };
 
   document.getElementById('btn-edit-file').onclick = async () => {
-    const externalId = state.selectedFile;
-    if (!externalId) {
+    const selected = document.querySelector('.file-item[data-selected="true"]');
+    if (!selected) {
       document.getElementById('move-status').textContent = 'Please select a file first';
       return;
     }
-    
-    try {
-      const result = await apiEntity(externalId);
-      const { entity, content } = result;
-      
-      document.getElementById('edit-modal').style.display = 'block';
-      document.getElementById('edit-content').innerHTML = `
-        <dl class="kv">
-          <dt>File:</dt><dd>${entity.external_id}</dd>
-          <dt>Type:</dt><dd>${entity.entity_type}</dd>
-          <dt>MIME:</dt><dd>${entity.primary_mime}</dd>
-        </dl>
-        <textarea id="content-editor" style="width:100%;height:300px;font-family:monospace;padding:8px;">${content?.body || content?.raw_text || JSON.stringify(content?.data || {}, null, 2)}</textarea>
-      `;
-      
-      document.getElementById('btn-save-edit').onclick = async () => {
-        const newContent = document.getElementById('content-editor').value;
-        try {
-          await apiEntity(externalId, {
-            method: 'PATCH',
-            body: JSON.stringify({ content: { body: newContent } })
-          });
-          document.getElementById('edit-modal').style.display = 'none';
-          document.getElementById('move-status').textContent = 'File saved successfully';
-        } catch (e) {
-          document.getElementById('move-status').textContent = `Error: ${e.message}`;
-        }
-      };
-      
-      document.getElementById('btn-cancel-edit').onclick = () => {
-        document.getElementById('edit-modal').style.display = 'none';
-      };
-    } catch (e) {
-      document.getElementById('move-status').textContent = `Error: ${e.message}`;
-    }
+    await editEntity(selected.dataset.externalId);
   };
 
   document.getElementById('btn-delete-file').onclick = async () => {
-    const externalId = state.selectedFile;
-    if (!externalId) {
+    const selected = document.querySelector('.file-item[data-selected="true"]');
+    if (!selected) {
       document.getElementById('move-status').textContent = 'Please select a file first';
       return;
     }
-    
-    if (!confirm(`Are you sure you want to delete ${externalId}?`)) return;
-    
-    try {
-      await apiEntity(externalId, { method: 'DELETE' });
-      document.getElementById('move-status').textContent = `Deleted ${externalId}`;
-      const { data: newData } = await api('/api/entities?limit=200');
-      renderFileManager(newData);
-    } catch (e) {
-      document.getElementById('move-status').textContent = `Error: ${e.message}`;
-    }
+    await deleteEntity(selected.dataset.externalId);
   };
 }
 
@@ -704,10 +830,14 @@ function renderGridView(data) {
             const depth = e.external_id.split('/').length - 1;
             const indent = depth > 0 ? `<span class="muted" style="font-size:10px;">${'  '.repeat(depth)}</span>` : '';
             return `
-            <div class="card" style="margin:0;cursor:pointer;text-align:center;padding:16px;position:relative;" onclick="location.href='#entity/${e.external_id}'">
+            <div class="card" style="margin:0;text-align:center;padding:16px;position:relative;">
+              <div style="position:absolute;top:4px;right:4px;display:flex;gap:2px;z-index:10;">
+                <button class="secondary" style="padding:2px 4px;font-size:10px;" onclick="event.stopPropagation();editEntity('${e.external_id}')" title="Edit">&#9998;</button>
+                <button class="secondary" style="padding:2px 4px;font-size:10px;background:#fee2e2;color:#991b1b;" onclick="event.stopPropagation();deleteEntity('${e.external_id}')" title="Delete">&#10005;</button>
+              </div>
               ${indent}
-              <div style="margin-bottom:8px;display:flex;justify-content:center;">${getFileThumbnail(e.external_id)}</div>
-              <div style="font-weight:600;font-size:13px;word-break:break-all;">${e.external_id.split('/').pop()}</div>
+              <div style="margin-bottom:8px;display:flex;justify-content:center;cursor:pointer;" onclick="location.href='#entity/${e.external_id}'">${getFileThumbnail(e.external_id)}</div>
+              <div style="font-weight:600;font-size:13px;word-break:break-all;cursor:pointer;" onclick="location.href='#entity/${e.external_id}'">${e.external_id.split('/').pop()}</div>
               <div class="muted" style="font-size:11px;margin-top:4px;">${e.entity_type}</div>
               ${depth > 0 ? `<div class="muted" style="font-size:9px;margin-top:2px;">${e.external_id}</div>` : ''}
             </div>
@@ -745,6 +875,59 @@ function highlightJson() {
   });
 }
 
+// ---------- Connectors view ----------
+// Data-driven admin for storage_backends / protocol_gateways / inbound_sources.
+// All three are fetched via the same /api/:kind endpoint shape.
+async function renderConnectors(kind) {
+  const tabs = [
+    ['protocol-gateways', 'Protocol gateways'],
+    ['storage-backends',  'Storage backends'],
+    ['inbound-sources',   'Inbound sources'],
+  ];
+  kind = tabs.find(t => t[0] === kind) ? kind : 'protocol-gateways';
+
+  let payload;
+  try { payload = await api(`/api/${kind}`); }
+  catch (e) { payload = { data: [], error: e.message }; }
+  const rows = payload.data || [];
+
+  // Column sets per kind — keep the most useful ones visible; full row shown on hover (title attr)
+  const cols = {
+    'protocol-gateways': ['id','protocol','service_name','endpoint','storage_backend','auth_mode','enabled'],
+    'storage-backends':  ['id','driver','role','dsn','enabled'],
+    'inbound-sources':   ['id','driver','endpoint','poll_seconds','last_run_at','last_status','enabled'],
+  }[kind];
+
+  const tabBar = tabs.map(([id, label]) =>
+    `<a href="#connectors/${id}" class="${id === kind ? 'active' : ''}"
+        style="margin-right:12px;padding:6px 10px;border-radius:4px;
+               background:${id===kind?'#1f2937':'transparent'};color:${id===kind?'#fff':'#374151'};
+               text-decoration:none;">${label}</a>`).join('');
+
+  const body = rows.length === 0
+    ? `<p class="muted">No rows. ${payload.error ? '<br>Error: ' + escapeHtml(payload.error) : ''}</p>`
+    : `<table><thead><tr>${cols.map(c => `<th style="text-align:left">${c}</th>`).join('')}</tr></thead>
+         <tbody>${rows.map(r => `
+           <tr title='${escapeHtml(JSON.stringify(r))}'>
+             ${cols.map(c => `<td>${r[c] === null || r[c] === undefined ? '<span class="muted">—</span>' :
+                                   (typeof r[c] === 'boolean' ? (r[c] ? '✓' : '✗') :
+                                   escapeHtml(String(r[c])))}</td>`).join('')}
+           </tr>`).join('')}</tbody></table>`;
+
+  h(header('connectors') + `
+    <main>
+      <div class="card">
+        <h3 style="margin-top:0">Connectors registry</h3>
+        <p class="muted">Every protocol, every storage backend, every inbound source is a row here.
+           Each is implemented on top of the shared <code>platform_storage.EntityStore</code> contract,
+           so behaviour is identical across FTP / IMAP / POP3 / WebDAV / SMTP.</p>
+        <div style="margin:12px 0">${tabBar}</div>
+        ${body}
+      </div>
+    </main>`);
+  wireHeader();
+}
+
 // ---------- router ----------
 async function route() {
   if (!state.token) return renderLogin();
@@ -754,6 +937,7 @@ async function route() {
     if (hash === 'schemas')         return renderSchemas();
     if (hash === 'mime')            return renderMime();
     if (hash === 'audit')           return renderAudit();
+    if (hash === 'connectors' || hash.startsWith('connectors/')) return renderConnectors(hash.split('/')[1] || 'protocol-gateways');
     if (hash.startsWith('files/')) {
       const parts = hash.split('/');
       state.fileViewMode = parts[1] || 'tree';

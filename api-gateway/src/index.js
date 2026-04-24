@@ -413,6 +413,78 @@ app.patch('/api/entities/:externalId', auth, async (req, res) => {
   }
 });
 
+// ---------- CONNECTORS REGISTRY (storage_backends, protocol_gateways, inbound_sources) ----------
+// Uniform, paginated CRUD so the UI can show/edit protocol gateways, backends,
+// and pullers the same way it shows entities. All three tables share the
+// shape (id TEXT PK, … config JSONB, enabled BOOLEAN).
+
+const CONNECTOR_TABLES = {
+  'storage-backends':  { table: 'storage_backends',  cols: ['id','driver','role','dsn','config','mime_filter','enabled'] },
+  'protocol-gateways': { table: 'protocol_gateways', cols: ['id','protocol','service_name','endpoint','read_enabled','write_enabled','auth_mode','storage_backend','layout_strategy','config','enabled'] },
+  'inbound-sources':   { table: 'inbound_sources',   cols: ['id','driver','endpoint','credentials_ref','poll_seconds','target_schema','target_mime','id_template','config','enabled','last_run_at','last_status'] },
+};
+
+function connectorOnly(req, res, next) {
+  const kind = req.params.kind;
+  if (!CONNECTOR_TABLES[kind]) return res.status(404).json({ error: `unknown registry: ${kind}` });
+  req.registry = CONNECTOR_TABLES[kind];
+  next();
+}
+
+app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth, connectorOnly, async (req, res) => {
+  if (!(await canAccess(req.user, '*', 'read')))
+    return res.status(403).json({ error: 'forbidden' });
+  const { rows } = await pool.query(`SELECT * FROM ${req.registry.table} ORDER BY id`);
+  res.json({ data: rows });
+});
+
+app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
+  if (!(await canAccess(req.user, '*', 'read')))
+    return res.status(403).json({ error: 'forbidden' });
+  const { rows } = await pool.query(`SELECT * FROM ${req.registry.table} WHERE id=$1`, [req.params.id]);
+  if (rows.length === 0) return res.status(404).json({ error: 'not found' });
+  res.json(rows[0]);
+});
+
+app.post('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth, connectorOnly, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+  const body = req.body || {};
+  const cols = req.registry.cols.filter(c => body[c] !== undefined);
+  if (!body.id) return res.status(400).json({ error: 'id required' });
+  const placeholders = cols.map((_, i) => `$${i + 1}`).join(',');
+  const values = cols.map(c => (typeof body[c] === 'object' && body[c] !== null && !Array.isArray(body[c]) ? JSON.stringify(body[c]) : body[c]));
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO ${req.registry.table} (${cols.join(',')}) VALUES (${placeholders}) RETURNING *`,
+      values);
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    if (err.code === '23505') return res.status(409).json({ error: 'id already exists' });
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.patch('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+  const body = req.body || {};
+  const updatable = req.registry.cols.filter(c => c !== 'id' && body[c] !== undefined);
+  if (updatable.length === 0) return res.status(400).json({ error: 'no updatable fields' });
+  const sets = updatable.map((c, i) => `${c}=$${i + 1}`).join(',');
+  const values = updatable.map(c => (typeof body[c] === 'object' && body[c] !== null && !Array.isArray(body[c]) ? JSON.stringify(body[c]) : body[c]));
+  values.push(req.params.id);
+  const { rows } = await pool.query(
+    `UPDATE ${req.registry.table} SET ${sets} WHERE id=$${values.length} RETURNING *`, values);
+  if (rows.length === 0) return res.status(404).json({ error: 'not found' });
+  res.json(rows[0]);
+});
+
+app.delete('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+  const { rowCount } = await pool.query(`DELETE FROM ${req.registry.table} WHERE id=$1`, [req.params.id]);
+  if (rowCount === 0) return res.status(404).json({ error: 'not found' });
+  res.json({ deleted: true, id: req.params.id });
+});
+
 // ---------- COMMANDS (forward to bus) ----------
 app.post('/commands/:name', auth, async (req, res) => {
   if (!(await canAccess(req.user, 'command', 'execute')))

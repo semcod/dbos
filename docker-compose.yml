@@ -208,6 +208,151 @@ services:
     profiles: ["fuse"]             # opt-in: `docker compose --profile fuse up`
     networks: [platform]
 
+  # ---------- UNIFORM PROTOCOL GATEWAYS ----------
+  # Each gateway uses the shared `platform_storage` library (libs/platform_storage)
+  # and therefore sees the same entities exactly like vfs-webdav. Swap one for
+  # another by protocol, the data contract does not change.
+  # Opt-in via `docker compose --profile protocols up`.
+
+  vfs-ftp:
+    build:
+      context: .
+      dockerfile: vfs-ftp/Dockerfile
+    container_name: platform-vfs-ftp
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      STORAGE_BACKEND: pg-primary
+      FTP_USER: ${FTP_USER:-admin}
+      FTP_PASS: ${FTP_PASS:-admin}
+    ports:
+      - "${FTP_PORT:-2121}:2121"
+      - "30000-30100:30000-30100"
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["protocols"]
+    networks: [platform]
+
+  vfs-imap:
+    build:
+      context: .
+      dockerfile: vfs-imap/Dockerfile
+    container_name: platform-vfs-imap
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      STORAGE_BACKEND: pg-primary
+      IMAP_USER: ${IMAP_USER:-admin}
+      IMAP_PASS: ${IMAP_PASS:-admin}
+    ports: ["${IMAP_PORT:-1143}:1143"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["protocols"]
+    networks: [platform]
+
+  vfs-pop3:
+    build:
+      context: .
+      dockerfile: vfs-pop3/Dockerfile
+    container_name: platform-vfs-pop3
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      STORAGE_BACKEND: pg-primary
+      POP3_USER: ${POP3_USER:-admin}
+      POP3_PASS: ${POP3_PASS:-admin}
+    ports: ["${POP3_PORT:-1110}:1110"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["protocols"]
+    networks: [platform]
+
+  vfs-smtp:
+    build:
+      context: .
+      dockerfile: vfs-smtp/Dockerfile
+    container_name: platform-vfs-smtp
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      STORAGE_BACKEND: pg-primary
+    ports: ["${SMTP_PORT:-2525}:2525"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["protocols"]
+    networks: [platform]
+
+  # ---------- INBOUND CONNECTORS ----------
+  # Each connector loads its config from `inbound_sources` at runtime. Add a
+  # row -> it starts polling that source. No code change.
+  # Opt-in via `docker compose --profile connectors up`.
+
+  connector-imap-pull:
+    build:
+      context: .
+      dockerfile: connectors/imap-pull/Dockerfile
+    container_name: platform-connector-imap
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      STORAGE_BACKEND: pg-primary
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["connectors"]
+    networks: [platform]
+
+  connector-ftp-pull:
+    build:
+      context: .
+      dockerfile: connectors/ftp-pull/Dockerfile
+    container_name: platform-connector-ftp
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      STORAGE_BACKEND: pg-primary
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["connectors"]
+    networks: [platform]
+
+  connector-sql-mirror:
+    build:
+      context: .
+      dockerfile: connectors/sql-mirror/Dockerfile
+    container_name: platform-connector-sql
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      STORAGE_BACKEND: pg-primary
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["connectors"]
+    networks: [platform]
+
+  # ---------- STORAGE MIRRORING ----------
+  # Tails audit_log and replays every write into each `storage_backends` row
+  # with role='mirror'. Lets you keep a SQLite/MySQL copy of the same entities.
+  # Opt-in via `docker compose --profile mirrors up`.
+
+  storage-mirror:
+    build:
+      context: .
+      dockerfile: storage-mirror/Dockerfile
+    container_name: platform-storage-mirror
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      MIRROR_POLL_SECONDS: "3"
+      # Optional secondary backends — used only if declared in storage_backends:
+      SQLITE_PATH: /mirror-data/platform.sqlite
+      MYSQL_DSN: ${MYSQL_DSN:-}
+    volumes:
+      - ./mirror-data:/mirror-data
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["mirrors"]
+    networks: [platform]
+
 networks:
   platform:
     driver: bridge

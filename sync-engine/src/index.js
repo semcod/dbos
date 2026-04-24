@@ -232,73 +232,116 @@ async function upsertEntity({ external_id, entity_type, schema_id, mime }, parse
 }
 
 // --------------------------------------------------------------------------
-// Thumbnail generation (64x64 PNG)
+// Thumbnail generation (64x64 PNG with real content preview)
 // --------------------------------------------------------------------------
+function escapeXml(str) {
+  return String(str).replace(/[<>&"']/g, c =>
+    c === '<' ? '&lt;' : c === '>' ? '&gt;' : c === '&' ? '&amp;' : c === '"' ? '&quot;' : '&apos;');
+}
+
+function wrapLines(text, maxLen, maxLines) {
+  const lines = [];
+  let i = 0;
+  while (i < text.length && lines.length < maxLines) {
+    let end = Math.min(i + maxLen, text.length);
+    // Don't split inside an XML entity (&...;)
+    if (end < text.length) {
+      const slice = text.slice(i, end);
+      const lastAmp = slice.lastIndexOf('&');
+      const lastSemi = slice.lastIndexOf(';');
+      if (lastAmp > lastSemi) {
+        const nextSemi = text.indexOf(';', end);
+        if (nextSemi !== -1 && nextSemi - i < maxLen + 8) end = nextSemi + 1;
+      }
+    }
+    lines.push(text.slice(i, end));
+    i = end;
+  }
+  return lines;
+}
+
+function svgToPng(svg, width, height) {
+  return sharp(Buffer.from(svg)).resize(width, height, { fit: 'inside' }).png().toBuffer();
+}
+
+function buildHtmlThumbnail(text, w, h) {
+  const t = text.match(/<title>([^<]*)<\/title>/i);
+  const title = escapeXml(t ? t[1].slice(0, 18) : 'HTML');
+  const body = escapeXml(text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 40));
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${w}" height="${h}" fill="#f8f9fa"/>
+  <rect width="${w}" height="12" fill="#fd7e14"/>
+  <circle cx="5" cy="6" r="2" fill="#dc3545"/><circle cx="12" cy="6" r="2" fill="#ffc107"/><circle cx="19" cy="6" r="2" fill="#28a745"/>
+  <rect x="2" y="16" width="${w-4}" height="${h-20}" fill="#fff" rx="2"/>
+  <text x="4" y="14" font-size="6" fill="#fff" font-family="sans-serif">${title}</text>
+  <text x="4" y="26" font-size="5" fill="#6c757d" font-family="sans-serif">${body.slice(0,30)}</text>
+  <rect x="4" y="32" width="20" height="4" fill="#e9ecef" rx="1"/><rect x="26" y="32" width="16" height="4" fill="#e9ecef" rx="1"/>
+  <rect x="4" y="40" width="${w-10}" height="3" fill="#e9ecef" rx="1"/><rect x="4" y="46" width="${w-14}" height="3" fill="#e9ecef" rx="1"/>
+</svg>`;
+}
+
+function buildJsonThumbnail(text, w, h) {
+  const lines = wrapLines(escapeXml(text.replace(/\s+/g, ' ').trim().slice(0, 80)), 22, 4);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${w}" height="${h}" fill="#1e1e1e"/>
+  <text x="3" y="10" font-size="7" fill="#dcdcaa" font-family="monospace">{</text>
+  ${lines.map((l,i) => `<text x="6" y="${18+i*9}" font-size="6" fill="#9cdcfe" font-family="monospace">${l}</text>`).join('')}
+</svg>`;
+}
+
+function buildMarkdownThumbnail(text, w, h) {
+  const h1 = text.match(/^#\s+(.+)$/m);
+  const title = escapeXml(h1 ? h1[1].slice(0, 22) : 'Markdown');
+  const body = escapeXml(text.replace(/^#+\s+/gm, '').replace(/\s+/g, ' ').trim().slice(0, 45));
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${w}" height="${h}" fill="#fff"/>
+  <rect width="${w}" height="3" fill="#3498db"/>
+  <text x="4" y="14" font-size="7" fill="#2c3e50" font-family="sans-serif" font-weight="bold">${title}</text>
+  <text x="4" y="26" font-size="5" fill="#7f8c8d" font-family="sans-serif">${body}</text>
+  <rect x="4" y="36" width="30" height="2" fill="#ecf0f1" rx="1"/><rect x="36" y="36" width="20" height="2" fill="#ecf0f1" rx="1"/>
+</svg>`;
+}
+
+function buildCodeThumbnail(text, w, h, bg, fg, accent) {
+  const lines = wrapLines(escapeXml(text.replace(/\s+/g, ' ').trim().slice(0, 90)), 20, 5);
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${w}" height="${h}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="${w}" height="${h}" fill="${bg}" rx="3"/>
+  <rect x="2" y="2" width="${w-4}" height="3" fill="${accent}" rx="1"/>
+  ${lines.map((l,i) => `<text x="4" y="${12+i*10}" font-size="6" fill="${fg}" font-family="monospace">${l}</text>`).join('')}
+</svg>`;
+}
+
 async function generateThumbnail(absPath, mime, parsed, entityId) {
   try {
     let thumbBuffer;
-    const size = 64;
+    const w = 128, h = 128;
 
     if (mime?.startsWith('image/')) {
-      // For images: resize actual image to 64x64
-      thumbBuffer = await sharp(absPath)
-        .resize(size, size, { fit: 'cover' })
-        .png()
-        .toBuffer();
+      thumbBuffer = await sharp(absPath).resize(64, 64, { fit: 'cover' }).png().toBuffer();
     } else {
-      // For text/HTML/JSON/etc: create a colored preview
-      const bgColors = {
-        'text/html': { r: 230, g: 126, b: 34 },
-        'text/markdown': { r: 52, g: 152, b: 219 },
-        'application/json': { r: 46, g: 204, b: 113 },
-        'application/yaml': { r: 155, g: 89, b: 182 },
-        'application/xml': { r: 149, g: 165, b: 166 },
-        'text/plain': { r: 52, g: 73, b: 94 },
-      };
-      const bg = bgColors[mime] || { r: 100, g: 100, b: 100 };
+      let raw = '';
+      if (parsed?.body) raw = String(parsed.body);
+      else if (parsed?.raw_text) raw = String(parsed.raw_text);
+      else if (parsed?.data) raw = JSON.stringify(parsed.data).slice(0, 200);
+      else raw = path.basename(absPath);
 
-      // Get preview text (first line or filename)
-      let previewText = '';
-      if (parsed?.body) previewText = String(parsed.body).slice(0, 30);
-      else if (parsed?.raw_text) previewText = String(parsed.raw_text).slice(0, 30);
-      else if (parsed?.data) previewText = JSON.stringify(parsed.data).slice(0, 30);
-      else previewText = path.basename(absPath).slice(0, 20);
-
-      // Create a 64x64 colored image with a lighter top portion for text hint
-      const topColor = { r: Math.min(255, bg.r + 40), g: Math.min(255, bg.g + 40), b: Math.min(255, bg.b + 40), alpha: 1 };
-      thumbBuffer = await sharp({
-        create: {
-          width: size,
-          height: size,
-          channels: 4,
-          background: bg
-        }
-      })
-      .raw()
-      .toBuffer({ resolveWithObject: true })
-      .then(({ data, info }) => {
-        // Draw a lighter top 20px bar as text area hint
-        for (let y = 0; y < 20; y++) {
-          for (let x = 0; x < size; x++) {
-            const idx = (y * size + x) * 4;
-            data[idx] = topColor.r;
-            data[idx + 1] = topColor.g;
-            data[idx + 2] = topColor.b;
-            data[idx + 3] = 255;
-          }
-        }
-        // Add a small white dot pattern to indicate content
-        const dots = previewText.length > 0 ? Math.min(previewText.length, 8) : 3;
-        for (let i = 0; i < dots; i++) {
-          const dx = 8 + (i * 6);
-          const dy = 8;
-          if (dx < size - 4) {
-            const idx = (dy * size + dx) * 4;
-            data[idx] = 255; data[idx+1] = 255; data[idx+2] = 255; data[idx+3] = 200;
-          }
-        }
-        return sharp(data, { raw: info }).png().toBuffer();
-      });
+      if (mime === 'text/html') {
+        thumbBuffer = await svgToPng(buildHtmlThumbnail(raw, w, h), 64, 64);
+      } else if (mime === 'application/json') {
+        thumbBuffer = await svgToPng(buildJsonThumbnail(raw, w, h), 64, 64);
+      } else if (mime === 'text/markdown') {
+        thumbBuffer = await svgToPng(buildMarkdownThumbnail(raw, w, h), 64, 64);
+      } else if (mime === 'application/yaml') {
+        thumbBuffer = await svgToPng(buildCodeThumbnail(raw, w, h, '#2d1b4e', '#e0d0ff', '#9b59b6'), 64, 64);
+      } else if (mime === 'application/xml') {
+        thumbBuffer = await svgToPng(buildCodeThumbnail(raw, w, h, '#2c3e50', '#ecf0f1', '#95a5a6'), 64, 64);
+      } else {
+        thumbBuffer = await svgToPng(buildCodeThumbnail(raw, w, h, '#34495e', '#ecf0f1', '#7f8c8d'), 64, 64);
+      }
     }
 
     // Store in thumbnails table
@@ -356,6 +399,80 @@ async function handleFile(absPath) {
 }
 
 // --------------------------------------------------------------------------
+// Bulk thumbnail generation for existing entities
+// --------------------------------------------------------------------------
+async function findFileRecursively(dir, baseName, altNames = null) {
+  const names = altNames || [baseName];
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    const entryBase = path.parse(entry.name).name;
+    if (entry.isDirectory() && !entry.name.startsWith('.')) {
+      const found = await findFileRecursively(fullPath, baseName, names);
+      if (found) return found;
+    } else if (names.includes(entryBase)) {
+      return fullPath;
+    }
+  }
+  return null;
+}
+
+function generateAltNames(baseName) {
+  const alts = [baseName];
+  // For old dash-separated format: articles-demo-123 -> try demo-123
+  const parts = baseName.split('-');
+  for (let i = 1; i < parts.length; i++) {
+    alts.push(parts.slice(i).join('-'));
+  }
+  return alts;
+}
+
+async function generateMissingThumbnails() {
+  const { rows } = await pool.query(
+    `SELECT e.id, e.external_id, e.entity_type, e.primary_mime
+       FROM entities e
+       LEFT JOIN thumbnails t ON t.entity_id = e.id AND t.size = '64px'
+      WHERE t.id IS NULL`);
+
+  if (rows.length === 0) return;
+  console.log(`[sync] generating ${rows.length} missing thumbnails…`);
+
+  for (const e of rows) {
+    const parts = e.external_id.split('/');
+    const baseName = parts[parts.length - 1];
+    const dirPath = path.join(WATCH_PATH, ...parts.slice(0, -1));
+    let absPath = path.join(WATCH_PATH, e.external_id);
+    let mime = e.primary_mime;
+    let parsed = null;
+
+    try {
+      // Try direct path first
+      const files = await fs.readdir(dirPath);
+      const match = files.find(f => path.parse(f).name === baseName);
+      if (match) {
+        absPath = path.join(dirPath, match);
+      } else {
+        // Fallback: search recursively in all subdirectories
+        // This handles old dash-separated entities where external_id doesn't include folder
+        // Try exact match, then suffix variants (articles-demo-123 -> demo-123)
+        const altNames = generateAltNames(baseName);
+        const found = await findFileRecursively(WATCH_PATH, baseName, altNames);
+        if (found) absPath = found;
+      }
+      const buf = await fs.readFile(absPath);
+      const ext = path.extname(absPath).toLowerCase();
+      mime = EXT_TO_MIME[ext] || mime;
+      parsed = await parse(mime, buf, path.basename(absPath));
+    } catch {
+      // File not on disk — generate a colored placeholder based on MIME
+      parsed = { body: '', raw_text: '', data: {} };
+    }
+    await generateThumbnail(absPath, mime, parsed, e.id);
+  }
+  console.log(`[sync] ✓ ${rows.length} thumbnails generated`);
+}
+
+// --------------------------------------------------------------------------
 // Boot
 // --------------------------------------------------------------------------
 async function main() {
@@ -368,6 +485,9 @@ async function main() {
     catch { console.log('[sync] waiting for DB init…'); await new Promise(r => setTimeout(r, 2000)); }
   }
   await loadMimeRegistry();
+
+  // Generate thumbnails for any existing entities that don't have them
+  await generateMissingThumbnails();
 
   chokidar.watch(WATCH_PATH, {
     ignored: /(^|\/)\..*|node_modules/,

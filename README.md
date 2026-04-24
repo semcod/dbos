@@ -77,13 +77,52 @@ What happens on first boot:
 2. `sync-engine` picks up every file in `./data/` and writes it to the matching content table
 3. All three generators wake up and publish `/capabilities` from `schemas.renderers[]`
 4. UI at <http://localhost:5173> (login `admin@platform.local` / `demo1234`)
-5. CDN at <http://localhost:8080>, WebDAV at `http://localhost:8090`
+   - File Browser: `#files` — tree, table, manager, grid views
+   - Thumbnails: 64x64 PNG generated from file content (colors per MIME type)
+   - Icon size control: 16px–64px, row height: compact/normal/spacious
+   - Inline HTML preview + schema preview on entity pages
+   - JSON syntax highlighting
+5. CDN at <http://localhost:8081>, WebDAV at `http://localhost:8090`
+6. Logs in `./logs/` for debugging services
 
 Then from a second terminal:
 
 ```bash
 ./scripts/demo.sh
 ```
+
+## File Browser UI
+
+The UI at `#files` provides 4 views for browsing entities:
+
+| View      | URL hash                | Description                                    |
+| --------- | ----------------------- | -----------------------------------------------|
+| Tree      | `#files/tree`           | Hierarchical tree with expandable folders        |
+| Table     | `#files/table`          | Columns: path, type, schema, MIME, updated, status |
+| Manager   | `#files/manager`        | Two-column file manager with drag-and-drop move + edit/delete |
+| Grid      | `#files/grid`           | Grouped by folder, thumbnail + filename cards  |
+
+Controls:
+- **Icon Size**: 16px / 24px / 32px / 48px / 64px — adjusts thumbnails everywhere
+- **Row Height**: compact / normal / spacious — table and tree spacing
+
+## Nested filesystem paths
+
+Files in subdirectories are supported. `data/pages/page2/welcome.html` is stored with `external_id = pages/page2/welcome` (slash-separated). The UI displays paths as on disk.
+
+```bash
+# This entity exists at the nested path
+curl -H "Authorization: Bearer $TOKEN" \
+  "http://localhost:3000/api/entity?external_id=pages/page2/welcome"
+```
+
+## Thumbnails
+
+Every file change triggers 64x64 PNG thumbnail generation via `sharp`:
+- **Images**: resized actual image
+- **Text/HTML/JSON/YAML/XML**: colored squares (color per MIME) with dot pattern indicating content length
+
+Thumbnails are stored in the `thumbnails` table and served from `GET /api/thumbnail?external_id=...&size=64px`.
 
 ## Mount the platform as a filesystem
 
@@ -243,15 +282,20 @@ registry (generators, VFS, API) picks up the new routing automatically.
 | What                              | How                                                                 |
 | --------------------------------- | ------------------------------------------------------------------- |
 | Log in                            | `POST /auth/login  {email, password}` → JWT                         |
-| List entities                     | `GET /api/entities?entity_type=device`                              |
-| Fetch entity + content            | `GET /api/entities/:external_id`                                    |
+| List entities                     | `GET /api/entities?entity_type=device&limit=200`                    |
+| Fetch entity + content            | `GET /api/entities/:external_id`  or `GET /api/entity?external_id=` |
 | View rendered HTML                | `GET /api/entities/:external_id/html`                               |
+| Thumbnail (64x64 PNG)             | `GET /api/thumbnail?external_id=pages/page2/welcome&size=64px`      |
+| Update entity (move/edit)         | `PATCH /api/entity?external_id=... {external_id, content}`          |
+| Delete entity                     | `DELETE /api/entity?external_id=...`                                |
+| File Browser views                | `#files/tree`, `#files/table`, `#files/manager`, `#files/grid`      |
 | Inspect routing                   | `GET /mime-types`  and  `GET /schemas`                              |
 | Who renders schema X?             | `SELECT renderers FROM schemas WHERE id = 'article_v1';`            |
 | Run a command                     | `POST /commands/create_device  {...}`                               |
 | Audit                             | `GET /audit` (admin only)                                           |
 | Mount as filesystem               | `mount -t davfs http://localhost:8090 /mnt/vfs`                     |
 | Export one service                | `./scripts/export-service.sh gen-jinja`                             |
+| View logs                         | `cat ./logs/info.txt`  `./logs/warnings.txt`  `./logs/error.txt`    |
 
 ## Conventions that make this work
 
@@ -265,6 +309,87 @@ registry (generators, VFS, API) picks up the new routing automatically.
 4. **Sources are always tracked.** Every row has `source ∈
    {filesystem, api, command, generator, system}`, and so does every
    `audit_log` entry. You always know who wrote what.
+
+## Uniform protocols & storage plug-ins
+
+Every protocol surface (WebDAV, FUSE, FTP, IMAP, POP3, SMTP) and every
+inbound connector (filesystem, IMAP-pull, FTP-pull, SQL-mirror) implements
+the same `EntityStore` contract from `libs/platform_storage/`. Add a new
+protocol by writing a thin wrapper over that class — the data contract,
+MIME routing and audit trail stay identical.
+
+### Three registry tables
+
+| Table               | What lives there                                      |
+| ------------------- | ----------------------------------------------------- |
+| `storage_backends`  | Databases/object-stores: postgres, sqlite, mysql, …   |
+| `protocol_gateways` | Outbound surfaces: webdav, ftp, imap, pop3, smtp, …   |
+| `inbound_sources`   | Pullers: filesystem, IMAP mailboxes, FTP dirs, SQL    |
+
+Seeded on first boot (`06_connectors.sql`); add rows at runtime.
+
+### Start the extra protocols
+
+```bash
+docker compose --profile protocols up -d
+#   vfs-ftp   :2121     (FTP, user/pass from FTP_USER/FTP_PASS)
+#   vfs-imap  :1143     (IMAP4rev1)
+#   vfs-pop3  :1110     (POP3)
+#   vfs-smtp  :2525     (accepts incoming mail → entities)
+```
+
+Example — read articles over IMAP with a mail client or `openssl`:
+
+```bash
+# Any IMAP client works. Account = localhost:1143, user 'admin', pass 'admin'.
+# Mailbox "articles" lists every markdown entity; each message body IS the
+# markdown, with entity metadata in RFC-5322 headers.
+```
+
+Example — upload a file via FTP, see it in the same DB:
+
+```bash
+lftp -u admin,admin localhost:2121
+cd articles
+put my-post.md      # -> content_markdown via platform_storage, source='ftp'
+```
+
+### Start the inbound pullers
+
+```bash
+docker compose --profile connectors up -d
+```
+
+Then register a remote source at runtime:
+
+```sql
+INSERT INTO inbound_sources (id, driver, endpoint, credentials_ref,
+                             target_mime, id_template, config) VALUES
+('support-mail', 'imap', 'imaps://mail.example.com:993', 'SUPPORT',
+ 'text/markdown', 'mail/{remote_id}',
+ '{"mailbox":"INBOX","limit":50}');
+```
+
+Put `SUPPORT_USER`/`SUPPORT_PASS` in the env and the `connector-imap-pull`
+daemon will begin polling it every minute, writing messages as `mail/*`
+entities via the same `EntityStore.write()` used by `vfs-smtp`.
+
+### Mirror to a different database
+
+Declare a secondary backend and start the mirror daemon:
+
+```sql
+INSERT INTO storage_backends (id, driver, role, dsn) VALUES
+('sqlite-mirror', 'sqlite', 'mirror', 'sqlite:///mirror-data/platform.sqlite');
+```
+
+```bash
+docker compose --profile mirrors up -d storage-mirror
+```
+
+The daemon tails `audit_log` and replays every write into each mirror.
+Both MySQL (`driver='mysql'`) and SQLite (`driver='sqlite'`) are
+implemented; adding Mongo/Redis is one adapter class.
 
 ## What's deliberately not here
 

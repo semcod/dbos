@@ -1,0 +1,14 @@
+# SCENARIO: ftp-pull connector — registry wiring
+# TYPE: api
+
+CONFIG[3]{key, value}:
+  base_url, http://localhost:3000
+  timeout_ms, 5000
+  auth, bearer:${ADMIN_TOKEN}
+
+API[1]{method, endpoint, expected_status}:
+  GET, /api/inbound-sources, 200
+
+# Verifies the registry endpoint responds. Concrete ftp sources are runtime-added.
+ASSERT[1]{field, operator, expected}:
+  status, <, 400

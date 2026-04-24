@@ -42,16 +42,51 @@
 
 <script>
 const API = window.location.protocol + '//' + window.location.hostname + ':3000';
+
+function parseHashParams() {
+  const hash = location.hash.replace('#', '');
+  const [path, qs] = hash.split('?');
+  const params = {};
+  if (qs) {
+    qs.split('&').forEach(kv => {
+      const [k, v] = kv.split('=');
+      if (!k) return;
+      const key = decodeURIComponent(k);
+      const val = decodeURIComponent(v || '');
+      if (params[key] !== undefined) {
+        params[key] = Array.isArray(params[key]) ? [...params[key], val] : [params[key], val];
+      } else {
+        params[key] = val;
+      }
+    });
+  }
+  return { path, params };
+}
+
+function updateFileBrowserHash() {
+  const qs = [];
+  if (state.iconSize !== 24) qs.push(`iconSize=${encodeURIComponent(state.iconSize)}`);
+  if (state.rowHeight !== 'normal') qs.push(`rowHeight=${encodeURIComponent(state.rowHeight)}`);
+  state.selectedFiles.forEach(id => qs.push(`selected=${encodeURIComponent(id)}`));
+  const hash = `files/${state.fileViewMode}` + (qs.length ? '?' + qs.join('&') : '');
+  location.hash = hash;
+}
+
+const hashInit = parseHashParams();
 const state = {
   token: localStorage.getItem('token'),
   user:  JSON.parse(localStorage.getItem('user') || 'null'),
   view:  'list',
   entityTypeFilter: '',
   selected: null,
-  fileViewMode: 'tree', // tree, table, manager, grid
-  selectedFile: null,
-  iconSize: 24, // 16, 24, 32, 48, 64
-  rowHeight: 'normal', // compact, normal, spacious
+  fileViewMode: hashInit.path.startsWith('files/') ? hashInit.path.split('/')[1] || 'tree' : 'tree',
+  selectedFiles: (() => {
+    const s = hashInit.params.selected;
+    if (!s) return [];
+    return Array.isArray(s) ? s : [s];
+  })(),
+  iconSize: parseInt(hashInit.params.iconSize) || 24,
+  rowHeight: hashInit.params.rowHeight || 'normal',
   sourceDir: localStorage.getItem('sourceDir') || '',
   destDir:   localStorage.getItem('destDir')   || '',
 };
@@ -411,14 +446,14 @@ async function renderFiles() {
     });
   }
 
-  document.getElementById('btn-tree-view').onclick = () => { state.fileViewMode = 'tree'; updateViewButtons(); location.hash = 'files/tree'; };
-  document.getElementById('btn-table-view').onclick = () => { state.fileViewMode = 'table'; updateViewButtons(); location.hash = 'files/table'; };
-  document.getElementById('btn-manager-view').onclick = () => { state.fileViewMode = 'manager'; updateViewButtons(); location.hash = 'files/manager'; };
-  document.getElementById('btn-grid-view').onclick = () => { state.fileViewMode = 'grid'; updateViewButtons(); location.hash = 'files/grid'; };
+  document.getElementById('btn-tree-view').onclick = () => { state.fileViewMode = 'tree'; updateViewButtons(); updateFileBrowserHash(); };
+  document.getElementById('btn-table-view').onclick = () => { state.fileViewMode = 'table'; updateViewButtons(); updateFileBrowserHash(); };
+  document.getElementById('btn-manager-view').onclick = () => { state.fileViewMode = 'manager'; updateViewButtons(); updateFileBrowserHash(); };
+  document.getElementById('btn-grid-view').onclick = () => { state.fileViewMode = 'grid'; updateViewButtons(); updateFileBrowserHash(); };
   updateViewButtons();
   document.getElementById('btn-create-folder').onclick = () => showCreateFolderModal();
-  document.getElementById('icon-size-select').onchange = (e) => { state.iconSize = parseInt(e.target.value); renderFiles(); };
-  document.getElementById('row-height-select').onchange = (e) => { state.rowHeight = e.target.value; renderFiles(); };
+  document.getElementById('icon-size-select').onchange = (e) => { state.iconSize = parseInt(e.target.value); updateFileBrowserHash(); renderFiles(); };
+  document.getElementById('row-height-select').onchange = (e) => { state.rowHeight = e.target.value; updateFileBrowserHash(); renderFiles(); };
   
   if (state.fileViewMode === 'tree') renderTreeView(data);
   else if (state.fileViewMode === 'table') renderTableView(data);
@@ -474,9 +509,9 @@ async function deleteEntity(externalId) {
   if (!confirm(`Delete ${externalId}?`)) return;
   try {
     await apiEntity(externalId, { method: 'DELETE' });
+    state.selectedFiles = state.selectedFiles.filter(x => x !== externalId);
     setActionStatus(`Deleted ${externalId}`);
     const { data: newData } = await api('/api/entities?limit=200');
-    // Re-render current view
     if (state.fileViewMode === 'tree') renderTreeView(newData);
     else if (state.fileViewMode === 'table') renderTableView(newData);
     else if (state.fileViewMode === 'manager') renderFileManager(newData);
@@ -525,11 +560,12 @@ function renderTreeView(data) {
       const fullPath = pathPrefix ? `${pathPrefix}/${key}` : key;
       if (node.file) {
         const e = node.file;
-        html += `<div class="tree-indent tree-file-row" draggable="true" data-external-id="${e.external_id}" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-          <span onclick="location.href='#entity/${e.external_id}'" style="cursor:pointer;color:#2563eb;">
+        const isSel = state.selectedFiles.includes(e.external_id);
+        html += `<div class="tree-indent tree-file-row ${isSel ? 'tree-selected' : ''}" draggable="true" data-external-id="${e.external_id}" style="margin-left:${indent * 20}px;height:${rowHeight};display:flex;align-items:center;gap:8px;flex-wrap:wrap;cursor:pointer;${isSel ? 'background:#eff6ff;border-left:3px solid #2563eb;' : ''}">
+          <span onclick="event.stopPropagation();location.href='#entity/${e.external_id}'" style="cursor:pointer;color:#2563eb;">
             ${getFileThumbnail(e.external_id)}
           </span>
-          <span class="tree-file" onclick="location.href='#entity/${e.external_id}'">
+          <span class="tree-file" onclick="event.stopPropagation();location.href='#entity/${e.external_id}'" style="cursor:pointer;color:#2563eb;">
             ${key}
           </span>
           <span class="muted" style="font-size:11px">(${e.entity_type})</span>
@@ -584,6 +620,29 @@ function renderTreeView(data) {
       }
     });
   });
+
+  // Click selection on tree file rows
+  document.querySelectorAll('.tree-file-row').forEach(row => {
+    row.addEventListener('click', (evt) => {
+      // Don't select if clicking on a link, button, or element with inline onclick
+      if (evt.target.closest('a, button, [onclick]')) return;
+      const id = row.dataset.externalId;
+      if (evt.ctrlKey || evt.metaKey) {
+        if (state.selectedFiles.includes(id)) {
+          state.selectedFiles = state.selectedFiles.filter(x => x !== id);
+          row.style.background = ''; row.style.borderLeft = '';
+        } else {
+          state.selectedFiles.push(id);
+          row.style.background = '#eff6ff'; row.style.borderLeft = '3px solid #2563eb';
+        }
+      } else {
+        document.querySelectorAll('.tree-file-row').forEach(r => { r.style.background = ''; r.style.borderLeft = ''; });
+        state.selectedFiles = [id];
+        row.style.background = '#eff6ff'; row.style.borderLeft = '3px solid #2563eb';
+      }
+      updateFileBrowserHash();
+    });
+  });
 }
 
 function renderTableView(data) {
@@ -594,18 +653,43 @@ function renderTableView(data) {
     <table>
       <thead><tr><th>Path</th><th>Type</th><th>Schema</th><th>MIME</th><th>Updated</th><th>Status</th><th>Actions</th></tr></thead>
       <tbody>
-        ${data.map(e => `<tr style="height:${rowHeight}">
-          <td><div style="display:flex;align-items:center;gap:8px;">${getFileThumbnail(e.external_id)}<a href="#entity/${e.external_id}">${e.external_id}</a></div></td>
-          <td>${e.entity_type}</td>
-          <td><code>${e.schema_id}</code></td>
-          <td><code>${e.primary_mime}</code></td>
-          <td class="muted">${new Date(e.updated_at).toLocaleString()}</td>
-          <td><span class="badge ${e.status === 'active' ? 'active' : 'inactive'}">${e.status}</span></td>
-          <td>${fileActions(e.external_id)}</td>
-        </tr>`).join('')}
+        ${data.map(e => {
+          const isSel = state.selectedFiles.includes(e.external_id);
+          return `<tr class="table-row" data-external-id="${e.external_id}" style="height:${rowHeight};cursor:pointer;${isSel ? 'background:#eff6ff;' : ''}">
+            <td><div style="display:flex;align-items:center;gap:8px;">${getFileThumbnail(e.external_id)}<a href="#entity/${e.external_id}" onclick="event.stopPropagation()">${e.external_id}</a></div></td>
+            <td>${e.entity_type}</td>
+            <td><code>${e.schema_id}</code></td>
+            <td><code>${e.primary_mime}</code></td>
+            <td class="muted">${new Date(e.updated_at).toLocaleString()}</td>
+            <td><span class="badge ${e.status === 'active' ? 'active' : 'inactive'}">${e.status}</span></td>
+            <td>${fileActions(e.external_id)}</td>
+          </tr>`;
+        }).join('')}
       </tbody>
     </table>
   `;
+
+  // Click selection on table rows
+  document.querySelectorAll('.table-row').forEach(row => {
+    row.addEventListener('click', (evt) => {
+      if (evt.target.closest('a, button, [onclick]')) return;
+      const id = row.dataset.externalId;
+      if (evt.ctrlKey || evt.metaKey) {
+        if (state.selectedFiles.includes(id)) {
+          state.selectedFiles = state.selectedFiles.filter(x => x !== id);
+          row.style.background = '';
+        } else {
+          state.selectedFiles.push(id);
+          row.style.background = '#eff6ff';
+        }
+      } else {
+        document.querySelectorAll('.table-row').forEach(r => { r.style.background = ''; });
+        state.selectedFiles = [id];
+        row.style.background = '#eff6ff';
+      }
+      updateFileBrowserHash();
+    });
+  });
 }
 
 function renderFileManager(data) {
@@ -664,6 +748,14 @@ function renderFileManager(data) {
       </div>
     `).join('');
 
+    // Restore selection from URL state
+    document.querySelectorAll('.file-item').forEach(item => {
+      if (state.selectedFiles.includes(item.dataset.externalId)) {
+        item.style.background = '#dbeafe';
+        item.dataset.selected = 'true';
+      }
+    });
+
     // Add drag events
     document.querySelectorAll('.file-item').forEach(item => {
       item.addEventListener('dragstart', (e) => {
@@ -673,12 +765,30 @@ function renderFileManager(data) {
       item.addEventListener('dragend', (e) => {
         e.target.style.opacity = '1';
       });
-      item.addEventListener('click', () => {
-        document.querySelectorAll('.file-item').forEach(i => i.style.background = '#f9fafb');
-        item.style.background = '#dbeafe';
-        document.querySelectorAll('.file-item').forEach(i => i.dataset.selected = 'false');
-        item.dataset.selected = 'true';
-        state.selectedFile = item.dataset.externalId;
+      item.addEventListener('click', (evt) => {
+        const id = item.dataset.externalId;
+        if (evt.ctrlKey || evt.metaKey) {
+          // Toggle multi-select
+          if (state.selectedFiles.includes(id)) {
+            state.selectedFiles = state.selectedFiles.filter(x => x !== id);
+            item.style.background = '#f9fafb';
+            item.dataset.selected = 'false';
+          } else {
+            state.selectedFiles.push(id);
+            item.style.background = '#dbeafe';
+            item.dataset.selected = 'true';
+          }
+        } else {
+          // Single select
+          document.querySelectorAll('.file-item').forEach(i => {
+            i.style.background = '#f9fafb';
+            i.dataset.selected = 'false';
+          });
+          item.style.background = '#dbeafe';
+          item.dataset.selected = 'true';
+          state.selectedFiles = [id];
+        }
+        updateFileBrowserHash();
       });
     });
   }
@@ -774,12 +884,25 @@ function renderFileManager(data) {
   };
 
   document.getElementById('btn-delete-file').onclick = async () => {
-    const selected = document.querySelector('.file-item[data-selected="true"]');
-    if (!selected) {
+    const selected = document.querySelectorAll('.file-item[data-selected="true"]');
+    if (!selected.length) {
       document.getElementById('move-status').textContent = 'Please select a file first';
       return;
     }
-    await deleteEntity(selected.dataset.externalId);
+    const ids = Array.from(selected).map(el => el.dataset.externalId);
+    if (!confirm(`Delete ${ids.length} file(s): ${ids.join(', ')}?`)) return;
+    for (const id of ids) {
+      try {
+        await apiEntity(id, { method: 'DELETE' });
+        state.selectedFiles = state.selectedFiles.filter(x => x !== id);
+      } catch (err) {
+        document.getElementById('move-status').textContent = `Error deleting ${id}: ${err.message}`;
+        return;
+      }
+    }
+    document.getElementById('move-status').textContent = `Deleted ${ids.length} file(s)`;
+    const { data: newData } = await api('/api/entities?limit=200');
+    renderFileManager(newData);
   };
 }
 
@@ -815,7 +938,6 @@ function renderGridView(data) {
 
   document.getElementById('file-view-container').innerHTML = folders.map(folder => {
     const files = byFolder[folder];
-    const isRoot = folder === '(root)';
     return `
       <div style="margin-top:16px;">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:4px 0;border-bottom:1px solid #e5e7eb;">
@@ -825,19 +947,20 @@ function renderGridView(data) {
           <span style="font-weight:700;font-size:14px;color:#2563eb;">${folder}</span>
           <span class="muted" style="font-size:12px;">${files.length} file${files.length !== 1 ? 's' : ''}</span>
         </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,${gridSize});gap:16px;justify-content:start;">
+        <div class="grid-area" style="display:grid;grid-template-columns:repeat(auto-fill,${gridSize});gap:16px;justify-content:start;position:relative;">
           ${files.map(e => {
             const depth = e.external_id.split('/').length - 1;
             const indent = depth > 0 ? `<span class="muted" style="font-size:10px;">${'  '.repeat(depth)}</span>` : '';
+            const isSel = state.selectedFiles.includes(e.external_id);
             return `
-            <div class="card" style="margin:0;text-align:center;padding:16px;position:relative;">
+            <div class="card grid-item ${isSel ? 'grid-selected' : ''}" data-external-id="${e.external_id}" style="margin:0;text-align:center;padding:16px;position:relative;cursor:pointer;${isSel ? 'border:2px solid #2563eb;background:#eff6ff;' : ''}">
               <div style="position:absolute;top:4px;right:4px;display:flex;gap:2px;z-index:10;">
                 <button class="secondary" style="padding:2px 4px;font-size:10px;" onclick="event.stopPropagation();editEntity('${e.external_id}')" title="Edit">&#9998;</button>
                 <button class="secondary" style="padding:2px 4px;font-size:10px;background:#fee2e2;color:#991b1b;" onclick="event.stopPropagation();deleteEntity('${e.external_id}')" title="Delete">&#10005;</button>
               </div>
               ${indent}
-              <div style="margin-bottom:8px;display:flex;justify-content:center;cursor:pointer;" onclick="location.href='#entity/${e.external_id}'">${getFileThumbnail(e.external_id)}</div>
-              <div style="font-weight:600;font-size:13px;word-break:break-all;cursor:pointer;" onclick="location.href='#entity/${e.external_id}'">${e.external_id.split('/').pop()}</div>
+              <div style="margin-bottom:8px;display:flex;justify-content:center;" onclick="event.stopPropagation();location.href='#entity/${e.external_id}'">${getFileThumbnail(e.external_id)}</div>
+              <div style="font-weight:600;font-size:13px;word-break:break-all;" onclick="event.stopPropagation();location.href='#entity/${e.external_id}'">${e.external_id.split('/').pop()}</div>
               <div class="muted" style="font-size:11px;margin-top:4px;">${e.entity_type}</div>
               ${depth > 0 ? `<div class="muted" style="font-size:9px;margin-top:2px;">${e.external_id}</div>` : ''}
             </div>
@@ -846,6 +969,95 @@ function renderGridView(data) {
       </div>
     `;
   }).join('');
+
+  // Click selection on grid items
+  document.querySelectorAll('.grid-item').forEach(card => {
+    card.addEventListener('click', (evt) => {
+      if (evt.target.tagName === 'BUTTON' || evt.target.closest('button')) return;
+      const id = card.dataset.externalId;
+      if (evt.ctrlKey || evt.metaKey) {
+        if (state.selectedFiles.includes(id)) {
+          state.selectedFiles = state.selectedFiles.filter(x => x !== id);
+          card.classList.remove('grid-selected');
+          card.style.border = ''; card.style.background = '';
+        } else {
+          state.selectedFiles.push(id);
+          card.classList.add('grid-selected');
+          card.style.border = '2px solid #2563eb'; card.style.background = '#eff6ff';
+        }
+      } else {
+        document.querySelectorAll('.grid-item').forEach(c => {
+          c.classList.remove('grid-selected');
+          c.style.border = ''; c.style.background = '';
+        });
+        state.selectedFiles = [id];
+        card.classList.add('grid-selected');
+        card.style.border = '2px solid #2563eb'; card.style.background = '#eff6ff';
+      }
+      updateFileBrowserHash();
+    });
+  });
+
+  // Lasso / box selection
+  document.querySelectorAll('.grid-area').forEach(grid => {
+    let lasso = null, startX, startY, selecting = false;
+    grid.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('.grid-item')) return;
+      selecting = true;
+      const rect = grid.getBoundingClientRect();
+      startX = e.clientX - rect.left + grid.scrollLeft;
+      startY = e.clientY - rect.top + grid.scrollTop;
+      lasso = document.createElement('div');
+      lasso.style.position = 'absolute';
+      lasso.style.border = '1px dashed #2563eb';
+      lasso.style.background = 'rgba(37,99,235,0.1)';
+      lasso.style.left = startX + 'px';
+      lasso.style.top = startY + 'px';
+      lasso.style.width = '0px';
+      lasso.style.height = '0px';
+      lasso.style.zIndex = '100';
+      lasso.style.pointerEvents = 'none';
+      grid.appendChild(lasso);
+      document.body.style.userSelect = 'none';
+    });
+    grid.addEventListener('mousemove', (e) => {
+      if (!selecting || !lasso) return;
+      e.preventDefault();
+      const rect = grid.getBoundingClientRect();
+      const x = e.clientX - rect.left + grid.scrollLeft;
+      const y = e.clientY - rect.top + grid.scrollTop;
+      const left = Math.min(startX, x);
+      const top = Math.min(startY, y);
+      const width = Math.abs(x - startX);
+      const height = Math.abs(y - startY);
+      lasso.style.left = left + 'px';
+      lasso.style.top = top + 'px';
+      lasso.style.width = width + 'px';
+      lasso.style.height = height + 'px';
+    });
+    const endLasso = () => {
+      if (!selecting || !lasso) return;
+      selecting = false;
+      document.body.style.userSelect = '';
+      const lRect = lasso.getBoundingClientRect();
+      grid.querySelectorAll('.grid-item').forEach(card => {
+        const cRect = card.getBoundingClientRect();
+        const overlap = !(cRect.right < lRect.left || cRect.left > lRect.right || cRect.bottom < lRect.top || cRect.top > lRect.bottom);
+        if (overlap) {
+          const id = card.dataset.externalId;
+          if (!state.selectedFiles.includes(id)) state.selectedFiles.push(id);
+          card.classList.add('grid-selected');
+          card.style.border = '2px solid #2563eb'; card.style.background = '#eff6ff';
+        }
+      });
+      lasso.remove();
+      lasso = null;
+      updateFileBrowserHash();
+    };
+    grid.addEventListener('mouseup', endLasso);
+    grid.addEventListener('mouseleave', endLasso);
+  });
 }
 
 function wireHeader() {
@@ -938,9 +1150,17 @@ async function route() {
     if (hash === 'mime')            return renderMime();
     if (hash === 'audit')           return renderAudit();
     if (hash === 'connectors' || hash.startsWith('connectors/')) return renderConnectors(hash.split('/')[1] || 'protocol-gateways');
-    if (hash.startsWith('files/')) {
-      const parts = hash.split('/');
+    const hashParsed = parseHashParams();
+    if (hashParsed.path.startsWith('files/')) {
+      const parts = hashParsed.path.split('/');
       state.fileViewMode = parts[1] || 'tree';
+      if (hashParsed.params.iconSize) state.iconSize = parseInt(hashParsed.params.iconSize);
+      if (hashParsed.params.rowHeight) state.rowHeight = hashParsed.params.rowHeight;
+      if (hashParsed.params.selected) {
+        state.selectedFiles = Array.isArray(hashParsed.params.selected) ? hashParsed.params.selected : [hashParsed.params.selected];
+      } else {
+        state.selectedFiles = [];
+      }
       return renderFiles();
     }
     if (hash === 'files')           return renderFiles();

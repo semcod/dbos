@@ -59,20 +59,23 @@ def main():
 
     primary = get_store("pg-primary")
 
-    mirrors = {}
-    for mid, mime_filter in _load_mirrors():
-        try:
-            mirrors[mid] = (get_store(mid), mime_filter)
-            print(f"[mirror] armed: {mid} (filter={sorted(mime_filter) or 'all'})")
-        except Exception as e:
-            print(f"[mirror] cannot init {mid}: {e}")
-
-    if not mirrors:
-        print("[mirror] no mirror backends declared; idling")
-
     last_id = 0
     while True:
         try:
+            mirrors = {}
+            try:
+                for mid, mime_filter in _load_mirrors():
+                    try:
+                        mirrors[mid] = (get_store(mid), mime_filter)
+                    except Exception as e:
+                        print(f"[mirror] cannot init {mid}: {e}")
+                if not mirrors:
+                    print("[mirror] no mirror backends declared; idling")
+            except Exception as e:
+                print(f"[mirror] waiting for storage_backends registry: {e}")
+                time.sleep(POLL_SECONDS)
+                continue
+
             rows = _fetch_changes(last_id)
             for aid, _table, _eid, external_id, entity_type, mime in rows:
                 last_id = aid

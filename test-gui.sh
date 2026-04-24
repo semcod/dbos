@@ -105,6 +105,33 @@ if echo "$UI_HTML" | grep -q "tree-file-row"; then echo "  PASS: tree-file-row c
 if echo "$UI_HTML" | grep -q "tree-folder-row"; then echo "  PASS: tree-folder-row class"; else echo "  FAIL: tree-folder-row missing"; FAIL=1; fi
 echo ""
 
+# URL state sync
+echo "12. URL state sync (iconSize/rowHeight/viewMode in hash)..."
+if echo "$UI_HTML" | grep -q "function parseHashParams"; then echo "  PASS: parseHashParams()"; else echo "  FAIL: parseHashParams() missing"; FAIL=1; fi
+if echo "$UI_HTML" | grep -q "function updateFileBrowserHash"; then echo "  PASS: updateFileBrowserHash()"; else echo "  FAIL: updateFileBrowserHash() missing"; FAIL=1; fi
+echo ""
+
+# Multi-select files in URL
+echo "13. Multi-select selectedFiles in URL..."
+if echo "$UI_HTML" | grep -q "selectedFiles"; then echo "  PASS: selectedFiles state"; else echo "  FAIL: selectedFiles missing"; FAIL=1; fi
+if echo "$UI_HTML" | grep -q "state.selectedFiles.filter"; then echo "  PASS: selectedFiles cleanup on delete"; else echo "  FAIL: selectedFiles cleanup missing"; FAIL=1; fi
+echo ""
+
+# Grid view selection
+echo "14. Grid view click + lasso selection..."
+if echo "$UI_HTML" | grep -q 'class="card grid-item'; then echo "  PASS: grid-item cards"; else echo "  FAIL: grid-item missing"; FAIL=1; fi
+if echo "$UI_HTML" | grep -q 'class="grid-area'; then echo "  PASS: grid-area container"; else echo "  FAIL: grid-area missing"; FAIL=1; fi
+if echo "$UI_HTML" | grep -q "addEventListener('mousedown'"; then echo "  PASS: mousedown listener"; else echo "  FAIL: mousedown listener missing"; FAIL=1; fi
+if echo "$UI_HTML" | grep -q "lasso"; then echo "  PASS: lasso selection"; else echo "  FAIL: lasso missing"; FAIL=1; fi
+echo ""
+
+# Tree + Table view selection
+echo "15. Tree + Table view click selection..."
+if echo "$UI_HTML" | grep -q "tree-file-row"; then echo "  PASS: tree-file-row class"; else echo "  FAIL: tree-file-row missing"; FAIL=1; fi
+if echo "$UI_HTML" | grep -q 'class="table-row"'; then echo "  PASS: table-row class"; else echo "  FAIL: table-row missing"; FAIL=1; fi
+if echo "$UI_HTML" | grep -q "updateFileBrowserHash"; then echo "  PASS: URL sync for selection"; else echo "  FAIL: URL sync missing"; FAIL=1; fi
+echo ""
+
 echo "=== Test Summary ==="
 if [ $FAIL -eq 0 ]; then
   echo "ALL TESTS PASSED"

@@ -28,6 +28,9 @@ from platform_storage.base import EXT_TO_MIME, MIME_IO
 FTP_USER = os.environ.get("FTP_USER", "admin")
 FTP_PASS = os.environ.get("FTP_PASS", "admin")
 FTP_PORT = int(os.environ.get("FTP_PORT", "2121"))
+FTP_PUBLIC_HOST = os.environ.get("FTP_PUBLIC_HOST")
+FTP_PASSIVE_START = int(os.environ.get("FTP_PASSIVE_START", "30000"))
+FTP_PASSIVE_END = int(os.environ.get("FTP_PASSIVE_END", "30100"))
 
 
 class PlatformFS(AbstractedFS):
@@ -189,6 +192,9 @@ def main():
     handler.authorizer = auth
     handler.abstracted_fs = PlatformFS
     handler.banner = "Platform OS FTP gateway"
+    handler.passive_ports = range(FTP_PASSIVE_START, FTP_PASSIVE_END + 1)
+    if FTP_PUBLIC_HOST:
+        handler.masquerade_address = FTP_PUBLIC_HOST
 
     # Wait for DB so the first list_types() succeeds
     for _ in range(30):

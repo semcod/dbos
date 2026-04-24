@@ -66,7 +66,12 @@ def run_forever(driver: str, pull_once: Callable[[dict, object], Iterable[str]])
     default_sleep = int(os.environ.get("DEFAULT_POLL_SECONDS", "60"))
 
     while True:
-        sources = list(_load_sources(driver))
+        try:
+            sources = list(_load_sources(driver))
+        except Exception as e:
+            print(f"[{driver}-pull] waiting for inbound_sources registry: {e}")
+            time.sleep(default_sleep)
+            continue
         if not sources:
             time.sleep(default_sleep)
             continue

@@ -431,19 +431,34 @@ function connectorOnly(req, res, next) {
   next();
 }
 
+function registryError(res, err) {
+  if (err?.code === '42P01') {
+    return res.status(503).json({ error: 'registry tables not installed yet; run make db-upgrade-protocols' });
+  }
+  return res.status(400).json({ error: err.message });
+}
+
 app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth, connectorOnly, async (req, res) => {
   if (!(await canAccess(req.user, '*', 'read')))
     return res.status(403).json({ error: 'forbidden' });
-  const { rows } = await pool.query(`SELECT * FROM ${req.registry.table} ORDER BY id`);
-  res.json({ data: rows });
+  try {
+    const { rows } = await pool.query(`SELECT * FROM ${req.registry.table} ORDER BY id`);
+    res.json({ data: rows });
+  } catch (err) {
+    registryError(res, err);
+  }
 });
 
 app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
   if (!(await canAccess(req.user, '*', 'read')))
     return res.status(403).json({ error: 'forbidden' });
-  const { rows } = await pool.query(`SELECT * FROM ${req.registry.table} WHERE id=$1`, [req.params.id]);
-  if (rows.length === 0) return res.status(404).json({ error: 'not found' });
-  res.json(rows[0]);
+  try {
+    const { rows } = await pool.query(`SELECT * FROM ${req.registry.table} WHERE id=$1`, [req.params.id]);
+    if (rows.length === 0) return res.status(404).json({ error: 'not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    registryError(res, err);
+  }
 });
 
 app.post('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth, connectorOnly, async (req, res) => {
@@ -460,7 +475,7 @@ app.post('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth,
     res.status(201).json(rows[0]);
   } catch (err) {
     if (err.code === '23505') return res.status(409).json({ error: 'id already exists' });
-    res.status(400).json({ error: err.message });
+    registryError(res, err);
   }
 });
 
@@ -472,17 +487,25 @@ app.patch('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', 
   const sets = updatable.map((c, i) => `${c}=$${i + 1}`).join(',');
   const values = updatable.map(c => (typeof body[c] === 'object' && body[c] !== null && !Array.isArray(body[c]) ? JSON.stringify(body[c]) : body[c]));
   values.push(req.params.id);
-  const { rows } = await pool.query(
-    `UPDATE ${req.registry.table} SET ${sets} WHERE id=$${values.length} RETURNING *`, values);
-  if (rows.length === 0) return res.status(404).json({ error: 'not found' });
-  res.json(rows[0]);
+  try {
+    const { rows } = await pool.query(
+      `UPDATE ${req.registry.table} SET ${sets} WHERE id=$${values.length} RETURNING *`, values);
+    if (rows.length === 0) return res.status(404).json({ error: 'not found' });
+    res.json(rows[0]);
+  } catch (err) {
+    registryError(res, err);
+  }
 });
 
 app.delete('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
-  const { rowCount } = await pool.query(`DELETE FROM ${req.registry.table} WHERE id=$1`, [req.params.id]);
-  if (rowCount === 0) return res.status(404).json({ error: 'not found' });
-  res.json({ deleted: true, id: req.params.id });
+  try {
+    const { rowCount } = await pool.query(`DELETE FROM ${req.registry.table} WHERE id=$1`, [req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'not found' });
+    res.json({ deleted: true, id: req.params.id });
+  } catch (err) {
+    registryError(res, err);
+  }
 });
 
 // ---------- COMMANDS (forward to bus) ----------

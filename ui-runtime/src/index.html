@@ -163,6 +163,7 @@ function header(active) {
       <a href="#mime" class="${active==='mime'?'active':''}">MIME map</a>
       <a href="#audit" class="${active==='audit'?'active':''}">Audit</a>
       <a href="#connectors" class="${active==='connectors'?'active':''}">Connectors</a>
+      <a href="#settings" class="${active==='settings'?'active':''}">Settings</a>
     </nav>
     <div style="flex:1"></div>
     <span class="muted" style="color:#cbd5e1">${state.user.email} (${state.user.role})</span>
@@ -386,6 +387,72 @@ async function renderAudit() {
     h(header('audit') + `<main><div class="card"><p>${e.message} — audit is admin-only.</p></div></main>`);
     wireHeader();
   }
+}
+
+async function renderSettings() {
+  try {
+    const cfg = await api('/api/config');
+    const keys = Object.keys(cfg).sort();
+    const isAdmin = state.user.role === 'admin';
+
+    const rows = keys.map(k => {
+      const meta = cfg[k];
+      const overridden = meta.source === 'sqlite';
+      return `<tr data-key="${k}">
+        <td><code>${k}</code>${overridden ? ' <span class="badge active" title="overrides env">sqlite</span>' : ''}</td>
+        <td>
+          <input type="text" value="${escapeHtml(meta.value)}" class="cfg-val" style="width:100%;padding:4px 6px;border:1px solid #e5e7eb;border-radius:4px;"
+            ${isAdmin ? '' : 'disabled'}>
+        </td>
+        <td class="muted">${meta.source}${meta.updated_at ? ' · ' + new Date(meta.updated_at).toLocaleString() : ''}</td>
+      </tr>`;
+    }).join('');
+
+    h(header('settings') + `
+      <main>
+        <div class="card">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <h3 style="margin-top:0">Runtime Settings</h3>
+            ${isAdmin ? `<button id="save-cfg">Save overrides</button>` : `<span class="muted">Read-only (admin only)</span>`}
+          </div>
+          <p class="muted">Values come from environment variables. Admin can override individual keys — overrides are stored in a local SQLite file and shadow env vars for all services that read them through <code>get_config()</code>.</p>
+          <table>
+            <thead><tr><th style="width:25%">Key</th><th>Value</th><th style="width:20%">Source</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </main>`);
+    wireHeader();
+
+    if (isAdmin) {
+      document.getElementById('save-cfg').onclick = async () => {
+        const payload = {};
+        document.querySelectorAll('tr[data-key]').forEach(tr => {
+          const key = tr.dataset.key;
+          const val = tr.querySelector('.cfg-val').value;
+          const orig = cfg[key].value;
+          if (val !== orig) payload[key] = val;
+        });
+        if (Object.keys(payload).length === 0) return alert('No changes');
+        try {
+          await api('/api/config', { method: 'PATCH', body: JSON.stringify(payload) });
+          alert('Saved. Restart services to apply (or call reload_config() in Python services).');
+          renderSettings();
+        } catch (e) {
+          alert('Save failed: ' + e.message);
+        }
+      };
+    }
+  } catch (e) {
+    h(header('settings') + `<main><div class="card"><p>${e.message}</p></div></main>`);
+    wireHeader();
+  }
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
 }
 
 async function renderFiles() {
@@ -1095,6 +1162,7 @@ async function renderConnectors(kind) {
     ['protocol-gateways', 'Protocol gateways'],
     ['storage-backends',  'Storage backends'],
     ['inbound-sources',   'Inbound sources'],
+    ['service-mappings',  'Service mappings'],
   ];
   kind = tabs.find(t => t[0] === kind) ? kind : 'protocol-gateways';
 
@@ -1108,6 +1176,7 @@ async function renderConnectors(kind) {
     'protocol-gateways': ['id','protocol','service_name','endpoint','storage_backend','auth_mode','enabled'],
     'storage-backends':  ['id','driver','role','dsn','enabled'],
     'inbound-sources':   ['id','driver','endpoint','poll_seconds','last_run_at','last_status','enabled'],
+    'service-mappings':  ['id','source_service','target_service','filter','transform','enabled','last_status'],
   }[kind];
 
   const tabBar = tabs.map(([id, label]) =>
@@ -1150,6 +1219,7 @@ async function route() {
     if (hash === 'mime')            return renderMime();
     if (hash === 'audit')           return renderAudit();
     if (hash === 'connectors' || hash.startsWith('connectors/')) return renderConnectors(hash.split('/')[1] || 'protocol-gateways');
+    if (hash === 'settings')        return renderSettings();
     const hashParsed = parseHashParams();
     if (hashParsed.path.startsWith('files/')) {
       const parts = hashParsed.path.split('/');

@@ -50,18 +50,17 @@ fi
 
 say "Same message via POP3"
 if require_port "POP3" "$POP3_HOST" "$POP3_PORT"; then
-  OUT=$(printf 'USER %s\r\nPASS %s\r\nRETR 1\r\nQUIT\r\n' "$POP3_USER" "$POP3_PASS" \
-          | nc -q 2 "$POP3_HOST" "$POP3_PORT" 2>/dev/null || true)
-  # Message 1 may be anything; scan all LIST then RETR each
-  TOTAL=$(printf 'USER %s\r\nPASS %s\r\nLIST\r\nQUIT\r\n' "$POP3_USER" "$POP3_PASS" \
-            | nc -q 2 "$POP3_HOST" "$POP3_PORT" 2>/dev/null | grep -cE '^[0-9]+ [0-9]+' || true)
-  HIT=0
-  for i in $(seq 1 "${TOTAL:-0}"); do
-    OUT=$(printf 'USER %s\r\nPASS %s\r\nRETR %d\r\nQUIT\r\n' "$POP3_USER" "$POP3_PASS" "$i" \
+  # Use UIDL to find the index of our message, then RETR exactly that one.
+  UIDL=$(printf 'USER %s\r\nPASS %s\r\nUIDL\r\nQUIT\r\n' "$POP3_USER" "$POP3_PASS" \
+           | nc -q 2 "$POP3_HOST" "$POP3_PORT" 2>/dev/null || true)
+  IDX=$(echo "$UIDL" | grep -F "$FOUND" | awk '{print $1}' || true)
+  if [[ -n "$IDX" ]]; then
+    OUT=$(printf 'USER %s\r\nPASS %s\r\nRETR %s\r\nQUIT\r\n' "$POP3_USER" "$POP3_PASS" "$IDX" \
             | nc -q 2 "$POP3_HOST" "$POP3_PORT" 2>/dev/null || true)
-    if echo "$OUT" | grep -q "$SENTINEL"; then HIT=1; break; fi
-  done
-  [[ $HIT -eq 1 ]] && pass "POP3 RETR contains sentinel" || fail "POP3 never returned sentinel"
+    echo "$OUT" | grep -q "$SENTINEL" && pass "POP3 RETR contains sentinel" || fail "POP3 RETR did not contain sentinel"
+  else
+    fail "POP3 UIDL did not list message $FOUND"
+  fi
 fi
 
 finish

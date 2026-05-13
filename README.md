@@ -16,7 +16,7 @@ different project without dragging along the rest of the database.
 On top of the data there are:
 
 - **sync-engine** — watches `./data/`, parses files by extension, routes each to the right `content_*` table
-- **api-gateway** — generic `/api/entities/:id` that joins `entities` with the correct content table at runtime
+- **api-gateway** — generic `/api/entities/:id` that joins `entities` with the correct content table at runtime; plus CRUD for `storage_backends`, `protocol_gateways`, `inbound_sources`
 - **command-bus** — persists every command, routes to a worker by `schemas.target_runtime`
 - **worker-python** / **worker-php** — execute business logic
 - **gen-jinja** (Python), **gen-twig** (PHP), **gen-handlebars** (Node) — three website generators, each reading the same tables, each declaring what it can render in `schemas.renderers[]`
@@ -24,21 +24,36 @@ On top of the data there are:
 - **nginx-cdn** — reverse proxy with preview caching
 - **vfs-webdav** — WebDAV skin over the same tables (mount from anywhere)
 - **vfs-fuse** — real Linux FUSE mount
+- **vfs-ftp** — FTP server (`:2121`) with passive mode support
+- **vfs-imap** — IMAP4rev1 server (`:1143`) exposing entities as mailboxes/messages
+- **vfs-pop3** — POP3 server (`:1110`) with UIDL/RETR/DELE
+- **vfs-smtp** — SMTP gateway (`:2525`) ingesting mail as `mail/*` entities
+- **storage-mirror** — tails `audit_log` and replays writes into SQLite / MySQL mirrors
+- **sync-outbound** — reads `service_mappings` and pushes matching entities to filesystem targets (e.g. `./email/*.eml`)
+- **connectors** — inbound pollers (filesystem, IMAP-pull, FTP-pull, SQL-mirror)
 
 ## Layout
 
 ```
 platform/
 ├─ docker-compose.yml
+├─ Makefile                       stack lifecycle, tests, runnable examples
 ├─ .env.example
-├─ postgres/init/                 5 SQL files run on first boot
+├─ postgres/init/                 7 SQL files run on first boot
 │  ├─ 01_core.sql                 extensions, users, ACL, audit_log
 │  ├─ 02_registry.sql             schemas, mime_types, schema_paths, filesystem_map
 │  ├─ 03_content_tables.sql       entities + content_json/yaml/xml/html/markdown/binary
 │  ├─ 04_schemas_seed.sql         JSON Schemas + renderer declarations
-│  └─ 05_demo_data.sql            first rows in every content table
+│  ├─ 05_demo_data.sql            first rows in every content table
+│  ├─ 06_connectors.sql           storage_backends, protocol_gateways, inbound_sources
+│  └─ 07_mail_schema.sql          mail schema + schema_paths seed for SMTP/IMAP/POP3
+├─ scripts/
+│  ├─ demo.sh                     end-to-end walkthrough
+│  ├─ export-service.sh           extract one service + its tables for reuse
+│  └─ db-upgrade-protocols.sh     apply registry + mail schema to existing Postgres volumes
+├─ libs/platform_storage/         shared storage contract + adapters (Pg, SQLite, MySQL)
 ├─ sync-engine/                   filesystem -> DB, MIME-routed
-├─ api-gateway/                   REST + ACL + schema validation
+├─ api-gateway/                   REST + ACL + schema validation + registry CRUD
 ├─ command-bus/                   routes commands to workers by target_runtime
 ├─ workers/
 │  ├─ python/                     FastAPI; handles create_device, etc.
@@ -51,6 +66,20 @@ platform/
 ├─ cdn/nginx.conf                 reverse proxy
 ├─ vfs-webdav/                    WebDAV frontend over content_* tables
 ├─ vfs-fuse/                      FUSE frontend over content_* tables
+├─ vfs-ftp/                       FTP gateway (passive mode, masquerade support)
+├─ vfs-imap/                      IMAP4rev1 gateway
+├─ vfs-pop3/                      POP3 gateway
+├─ vfs-smtp/                      SMTP ingest gateway
+├─ storage-mirror/                audit_log tailer -> SQLite/MySQL mirrors
+├─ sync-outbound/                   service_mappings -> filesystem export
+├─ connectors/                    inbound poller daemons
+├─ sdk/                           Python / JS / PHP clients
+├─ examples/                      runnable integration scenarios
+│  ├─ 01-write-http-read-protocols/
+│  ├─ 02-smtp-to-platform/
+│  ├─ 03-sqlite-mirror/
+│  ├─ 04-connectors-registry/
+│  └─ 05-everything/
 ├─ data/                          watched by sync-engine (nested dirs supported)
 │  ├─ articles/*.md
 │  ├─ devices/*.json
@@ -59,21 +88,19 @@ platform/
 │  ├─ scenarios/*.yaml
 │  └─ protocols/*.xml
 ├─ logs/                          info.txt, warnings.txt, error.txt
-└─ scripts/
-   ├─ demo.sh                     end-to-end walkthrough
-   └─ export-service.sh           extract one service + its tables for reuse
+└─ mirror-data/                   SQLite mirror default path
 ```
 
 ## Quickstart
 
 ```bash
 cp .env.example .env
-docker compose up --build
+make up-all          # core + protocols + connectors + mirrors
 ```
 
 What happens on first boot:
 
-1. Postgres runs the 5 init SQL files (schemas, demo data)
+1. Postgres runs the 7 init SQL files (schemas, demo data, registry, mail schema)
 2. `sync-engine` picks up every file in `./data/` and writes it to the matching content table
 3. All three generators wake up and publish `/capabilities` from `schemas.renderers[]`
 4. UI at <http://localhost:5173> (login `admin@platform.local` / `demo1234`)
@@ -83,13 +110,18 @@ What happens on first boot:
    - Inline HTML preview + schema preview on entity pages
    - JSON syntax highlighting
 5. CDN at <http://localhost:8081>, WebDAV at `http://localhost:8090`
-6. Logs in `./logs/` for debugging services
+6. Protocol gateways: FTP `:2121`, IMAP `:1143`, POP3 `:1110`, SMTP `:2525`
+7. Logs in `./logs/` for debugging services
 
 Then from a second terminal:
 
 ```bash
-./scripts/demo.sh
+make examples        # run all 5 integration scenarios
+./scripts/demo.sh    # end-to-end walkthrough
 ```
+
+If you already have an old Postgres volume, run `make db-upgrade-protocols` before
+starting the new services so registry tables and the mail schema exist.
 
 ## File Browser UI
 
@@ -247,27 +279,30 @@ registry (generators, VFS, API) picks up the new routing automatically.
 ## Architecture
 
 ```
-           +-------------+        WebDAV          FUSE
-           | UI / Client |         |               |
-           +------+------+         |               |
-                  |                v               v
-                  |         +--------------+  +----------+
-                  v         |  vfs-webdav  |  | vfs-fuse |
-           +-------------+  +------+-------+  +----+-----+
-           |  api-gateway|         |               |
-           +------+------+         |               |
-                  |                v               v
-                  |         +-----------------------------+
-                  |         |         PostgreSQL          |
-                  v         |  entities + content_json    |
-           +-------------+  |        + content_yaml       |
-           | command-bus |->|        + content_xml        |
-           +------+------+  |        + content_html       |
-                  |         |        + content_markdown   |
-    +-------------+---+     |        + content_binary     |
-    v             v   v     |  schemas, mime_types        |
- worker-       gen-*    +-->|  audit_log, commands        |
- python/php                 +-----------------------------+
+           +-------------+   WebDAV   FUSE   FTP   IMAP   POP3
+           | UI / Client |     |       |      |      |      |
+           +------+------+     |       |      |      |      |
+                  |            v       v      v      v      v
+                  |    +----------+ +------+ +------+ +------+ +------+
+                  |    |vfs-webdav| |fuse  | |ftp   | |imap  | |pop3  |
+                  |    +----+-----+ +---+--+ +---+--+ +--+---+ +--+---+
+                  |         |          |        |        |        |
+           +-------------+  |          |        |        |        |
+           |  api-gateway|  |          |        |        |        |
+           +------+------+  |          |        |        |        |
+                  |         v          v        v        v        v
+                  |    +------------------------------------------------+
+                  |    |               PostgreSQL (primary)               |
+                  v    |  entities + content_* tables + schemas + audit_log |
+           +-------------+ |  storage_backends + protocol_gateways      |
+           | command-bus | |  inbound_sources                               |
+           +------+------+ +-----------------------+------------------------+
+                  |                                ^
+    +-------------+---+                            |
+    v             v   v                    +--------------------+
+ worker-       gen-*    +----------------> |  storage-mirror    |
+ python/php                               |  SQLite / MySQL    |
+                                          +--------------------+
                                        ^
                                        |
                            +---------------------+
@@ -293,9 +328,15 @@ registry (generators, VFS, API) picks up the new routing automatically.
 | Who renders schema X?             | `SELECT renderers FROM schemas WHERE id = 'article_v1';`            |
 | Run a command                     | `POST /commands/create_device  {...}`                               |
 | Audit                             | `GET /audit` (admin only)                                           |
+| Registry CRUD (backends/gateways/sources) | `GET|POST|PATCH|DELETE /api/storage-backends` / `protocol-gateways` / `inbound-sources` |
 | Mount as filesystem               | `mount -t davfs http://localhost:8090 /mnt/vfs`                     |
 | Export one service                | `./scripts/export-service.sh gen-jinja`                             |
 | View logs                         | `cat ./logs/info.txt`  `./logs/warnings.txt`  `./logs/error.txt`    |
+| Run all examples                  | `make examples`                                                     |
+| Upgrade existing DB               | `make db-upgrade-protocols`                                         |
+| Install dev tools                 | `make install-dev`  (taskfile + testql)                             |
+| List taskfile tasks               | `taskfile list`                                                     |
+| Run TestQL smoke tests            | `testql run testql-scenarios/*.testql.toon.yaml`                    |
 
 ## Conventions that make this work
 
@@ -318,15 +359,32 @@ the same `EntityStore` contract from `libs/platform_storage/`. Add a new
 protocol by writing a thin wrapper over that class — the data contract,
 MIME routing and audit trail stay identical.
 
-### Three registry tables
+### Four registry tables
 
 | Table               | What lives there                                      |
 | ------------------- | ----------------------------------------------------- |
 | `storage_backends`  | Databases/object-stores: postgres, sqlite, mysql, …   |
 | `protocol_gateways` | Outbound surfaces: webdav, ftp, imap, pop3, smtp, …   |
 | `inbound_sources`   | Pullers: filesystem, IMAP mailboxes, FTP dirs, SQL    |
+| `service_mappings`  | Data-flow routing: source → target (DB → filesystem)    |
 
-Seeded on first boot (`06_connectors.sql`); add rows at runtime.
+Seeded on first boot (`06_connectors.sql` + `08_service_mappings.sql`); add rows at runtime via UI or API.
+
+### SDK (Python / JavaScript / PHP)
+
+Programmatic access to entities, registry, and config:
+
+```python
+from dbos_client import DBOSClient
+db = DBOSClient('http://localhost:3000')
+db.login('admin@platform.local', 'demo1234')
+db.create_entity('mail/hello', 'mail', 'mail_v1', {'title':'Hello','body':'World'})
+db.create_service_mapping('imap-to-email', 'pg-primary', 'filesystem-email',
+                          filter={'entity_type':'mail'},
+                          transform={'format':'rfc5322','extension':'.eml'})
+```
+
+See `sdk/python/dbos_client.py`, `sdk/js/dbos_client.js`, `sdk/php/DBOSClient.php`.
 
 ### Start the extra protocols
 
@@ -336,6 +394,9 @@ docker compose --profile protocols up -d
 #   vfs-imap  :1143     (IMAP4rev1)
 #   vfs-pop3  :1110     (POP3)
 #   vfs-smtp  :2525     (accepts incoming mail → entities)
+
+docker compose --profile outbound up -d
+#   sync-outbound       (exports DB entities → ./email/*.eml via service_mappings)
 ```
 
 Example — read articles over IMAP with a mail client or `openssl`:
@@ -407,3 +468,20 @@ deployment would add:
 ## License
 
 Licensed under Apache-2.0.
+
+<!-- taskill:status:start -->
+
+## Status
+
+_Last updated by [taskill](https://github.com/oqlos/taskill) at 2026-04-25 13:37 UTC_
+
+| Metric | Value |
+|---|---|
+| HEAD | `d28c580` |
+| Coverage | — |
+| Failing tests | — |
+| Commits in last cycle | 5 |
+
+> Added documentation for a code analysis engine and a configuration management system; also introduced example files and additional service components.
+
+<!-- taskill:status:end -->

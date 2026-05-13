@@ -56,6 +56,7 @@ const DIR_TO_ENTITY = {
   scenarios: { entity_type: 'scenario', schema_id: 'scenario_v1' },
   protocols: { entity_type: 'protocol', schema_id: 'protocol_v1' },
   images:    { entity_type: 'image',    schema_id: 'image_v1'    },
+  email:     { entity_type: 'mail',     schema_id: 'mail_v1'     },
 };
 
 // --------------------------------------------------------------------------

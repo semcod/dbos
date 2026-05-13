@@ -24,8 +24,10 @@ import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import jwt from 'jsonwebtoken';
 import crypto from 'node:crypto';
+import sqlite3 from 'sqlite3';
 
 const { DATABASE_URL, JWT_SECRET, COMMAND_BUS_URL } = process.env;
+const CONFIG_DB = process.env.CONFIG_DB || '/config-data/platform-config.sqlite';
 const pool = new pg.Pool({ connectionString: DATABASE_URL });
 
 const ajv = new Ajv({ allErrors: true, strict: false });
@@ -381,6 +383,11 @@ app.post('/api/entities', auth, async (req, res) => {
     if (!spec) throw new Error(`no insert handler for ${table}`);
     await client.query(spec[0], spec[1]);
 
+    await client.query(
+      `INSERT INTO audit_log (entity_id, content_table, action, source)
+       VALUES ($1, $2, 'create', 'api')`,
+      [entityId, table]);
+
     await client.query('COMMIT');
     res.status(201).json({ id: entityId, external_id, entity_type, schema_id, primary_mime: mime });
   } catch (err) {
@@ -422,6 +429,7 @@ const CONNECTOR_TABLES = {
   'storage-backends':  { table: 'storage_backends',  cols: ['id','driver','role','dsn','config','mime_filter','enabled'] },
   'protocol-gateways': { table: 'protocol_gateways', cols: ['id','protocol','service_name','endpoint','read_enabled','write_enabled','auth_mode','storage_backend','layout_strategy','config','enabled'] },
   'inbound-sources':   { table: 'inbound_sources',   cols: ['id','driver','endpoint','credentials_ref','poll_seconds','target_schema','target_mime','id_template','config','enabled','last_run_at','last_status'] },
+  'service-mappings':  { table: 'service_mappings',  cols: ['id','source_service','target_service','filter','transform','enabled','last_run_at','last_status'] },
 };
 
 function connectorOnly(req, res, next) {
@@ -438,7 +446,7 @@ function registryError(res, err) {
   return res.status(400).json({ error: err.message });
 }
 
-app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth, connectorOnly, async (req, res) => {
+app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources|service-mappings)', auth, connectorOnly, async (req, res) => {
   if (!(await canAccess(req.user, '*', 'read')))
     return res.status(403).json({ error: 'forbidden' });
   try {
@@ -449,7 +457,7 @@ app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth, 
   }
 });
 
-app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
+app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources|service-mappings)/:id', auth, connectorOnly, async (req, res) => {
   if (!(await canAccess(req.user, '*', 'read')))
     return res.status(403).json({ error: 'forbidden' });
   try {
@@ -461,7 +469,7 @@ app.get('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', au
   }
 });
 
-app.post('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth, connectorOnly, async (req, res) => {
+app.post('/api/:kind(storage-backends|protocol-gateways|inbound-sources|service-mappings)', auth, connectorOnly, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
   const body = req.body || {};
   const cols = req.registry.cols.filter(c => body[c] !== undefined);
@@ -479,7 +487,7 @@ app.post('/api/:kind(storage-backends|protocol-gateways|inbound-sources)', auth,
   }
 });
 
-app.patch('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
+app.patch('/api/:kind(storage-backends|protocol-gateways|inbound-sources|service-mappings)/:id', auth, connectorOnly, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
   const body = req.body || {};
   const updatable = req.registry.cols.filter(c => c !== 'id' && body[c] !== undefined);
@@ -497,7 +505,7 @@ app.patch('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', 
   }
 });
 
-app.delete('/api/:kind(storage-backends|protocol-gateways|inbound-sources)/:id', auth, connectorOnly, async (req, res) => {
+app.delete('/api/:kind(storage-backends|protocol-gateways|inbound-sources|service-mappings)/:id', auth, connectorOnly, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
   try {
     const { rowCount } = await pool.query(`DELETE FROM ${req.registry.table} WHERE id=$1`, [req.params.id]);
@@ -562,6 +570,97 @@ app.get('/api/thumbnail', auth, async (req, res) => {
   await serveThumbnail(req, res, decodedId);
 });
 
+// ---------- CONFIG (env + SQLite overrides) ----------
+const CONFIG_PREFIXES = [
+  'POSTGRES_','API_','BUS_','UI_','CDN_','WEBDAV_',
+  'JWT_','SYNC_','MERGE_','FTP_','IMAP_','POP3_','SMTP_',
+  'STORAGE_','COMMAND_BUS_','MIRROR_','SQLITE_','MYSQL_',
+  'VFS_','CONFIG_',
+];
+
+function dbOpen() {
+  return new Promise((resolve, reject) => {
+    const db = new sqlite3.Database(CONFIG_DB, (err) => err ? reject(err) : resolve(db));
+  });
+}
+function dbRun(db, sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.run(sql, params, function(err) { err ? reject(err) : resolve({ changes: this.changes, lastID: this.lastID }); });
+  });
+}
+function dbAll(db, sql, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(sql, params, (err, rows) => err ? reject(err) : resolve(rows));
+  });
+}
+function dbClose(db) {
+  return new Promise((resolve, reject) => db.close((err) => err ? reject(err) : resolve()));
+}
+
+async function initConfigDb() {
+  const db = await dbOpen();
+  await dbRun(db, `CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )`);
+  await dbClose(db);
+}
+
+app.get('/api/config', auth, async (req, res) => {
+  try {
+    const out = {};
+    for (const [k, v] of Object.entries(process.env)) {
+      if (CONFIG_PREFIXES.some(p => k.startsWith(p))) {
+        out[k] = { value: v, source: 'env' };
+      }
+    }
+    const db = await dbOpen();
+    const rows = await dbAll(db, 'SELECT key, value, updated_at FROM settings ORDER BY key');
+    await dbClose(db);
+    for (const r of rows) out[r.key] = { value: r.value, source: 'sqlite', updated_at: r.updated_at };
+    res.json(out);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.patch('/api/config', auth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+  const body = req.body || {};
+  if (typeof body !== 'object' || Array.isArray(body)) return res.status(400).json({ error: 'body must be an object of key:value pairs' });
+  const db = await dbOpen();
+  const now = new Date().toISOString();
+  try {
+    for (const [k, v] of Object.entries(body)) {
+      await dbRun(db,
+        `INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)
+         ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at`,
+        [k, String(v), now]
+      );
+    }
+    res.json({ updated: Object.keys(body).length });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    await dbClose(db);
+  }
+});
+
+app.delete('/api/config/:key', auth, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'admin only' });
+  const db = await dbOpen();
+  try {
+    const result = await dbRun(db, 'DELETE FROM settings WHERE key=?', [req.params.key]);
+    res.json({ deleted: result.changes || 0 });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  } finally {
+    await dbClose(db);
+  }
+});
+
 // ---------- START ----------
+await initConfigDb();
 await loadCaches();
 app.listen(3000, () => console.log('api-gateway listening on :3000'));

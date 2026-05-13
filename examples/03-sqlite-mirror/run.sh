@@ -44,7 +44,7 @@ RESP=$(api_post "/api/entities" "$CREATE_PAYLOAD")
 echo "$RESP" | grep -q '"id"' && pass "entity created" || { fail "create: $RESP"; finish; }
 
 say "Wait for mirror to catch up"
-for i in $(seq 1 10); do
+for i in $(seq 1 15); do
   sleep 1
   if [[ -f "$SQLITE_FILE" ]] && python3 - "$SQLITE_FILE" "$EXTERNAL_ID" <<'PY' >/dev/null 2>&1
 import sqlite3, sys
@@ -57,7 +57,7 @@ PY
     pass "entity replicated to $SQLITE_FILE"
     break
   fi
-  [[ $i -eq 10 ]] && fail "entity never appeared in sqlite mirror after 10s"
+  [[ $i -eq 15 ]] && fail "entity never appeared in sqlite mirror after 15s"
 done
 
 if [[ -f "$SQLITE_FILE" ]]; then

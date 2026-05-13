@@ -6,6 +6,7 @@ Because every mirror target implements the same `EntityStore` contract, the
 daemon doesn't care which backend it's talking to — it just calls
 `mirror.write(external_id, entity_type, mime, body)`.
 """
+
 from __future__ import annotations
 
 import os
@@ -87,8 +88,9 @@ def main():
                     if mime_filter and actual_mime not in mime_filter:
                         continue
                     try:
-                        adapter.write(external_id, entity_type, actual_mime, body,
-                                      source="mirror")
+                        adapter.write(
+                            external_id, entity_type, actual_mime, body, source="mirror"
+                        )
                     except Exception as e:
                         print(f"[mirror] {mid} write failed for {external_id}: {e}")
         except Exception as e:

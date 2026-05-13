@@ -1,0 +1,48 @@
+version: "1"
+name: dbos
+description: "Platform OS — schema-driven runtime"
+
+variables:
+  COMPOSE: docker compose
+
+environments:
+  local:
+    description: Local development
+  test:
+    description: CI / test environment
+
+tasks:
+  build:
+    description: Build all Docker images
+    commands:
+      - "${COMPOSE} build"
+
+  up:
+    description: Start core services
+    commands:
+      - "${COMPOSE} up -d"
+
+  up-all:
+    description: Start core + protocols + connectors + mirrors
+    commands:
+      - "${COMPOSE} --profile protocols --profile connectors --profile mirrors up -d"
+
+  down:
+    description: Stop all services
+    commands:
+      - "${COMPOSE} down"
+
+  examples:
+    description: Run all integration examples
+    commands:
+      - "make examples"
+
+  testql-smoke:
+    description: Run auto-generated API smoke tests via TestQL
+    commands:
+      - "testql run testql-scenarios/generated-api-smoke.testql.toon.yaml"
+
+  testql-generate:
+    description: Regenerate TestQL scenarios from project structure
+    commands:
+      - "testql generate . -o testql-scenarios --format testql"

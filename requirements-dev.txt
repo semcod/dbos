@@ -1,0 +1,8 @@
+# Development dependencies for Platform OS
+# Install with: pip install -r requirements-dev.txt
+#
+# taskfile   — Universal task runner with multi-environment deploy support
+# testql     — Interface Query Language for GUI/API/encoder testing
+
+taskfile>=0.3.80
+testql>=0.6.0

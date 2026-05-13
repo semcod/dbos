@@ -17,5 +17,6 @@ behave identically: the storage is abstract, the protocol is just decoration.
 """
 from .base import EntityStore, EntityRef
 from .factory import get_store
+from .config import ConfigManager, get_config, reload_config
 
-__all__ = ["EntityStore", "EntityRef", "get_store"]
+__all__ = ["EntityStore", "EntityRef", "get_store", "ConfigManager", "get_config", "reload_config"]

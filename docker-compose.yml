@@ -53,6 +53,7 @@ services:
     build: ./api-gateway
     container_name: platform-gateway
     restart: unless-stopped
+    env_file: .env
     environment:
       DATABASE_URL: postgres://platform:platform@postgres:5432/platform
       JWT_SECRET: ${JWT_SECRET:-devsecret-change-me}
@@ -60,7 +61,10 @@ services:
       GEN_JINJA_URL: http://gen-jinja:6001
       GEN_TWIG_URL: http://gen-twig:6002
       GEN_HANDLEBARS_URL: http://gen-handlebars:6003
+      CONFIG_DB: /config-data/platform-config.sqlite
     ports: ["${API_PORT:-3000}:3000"]
+    volumes:
+      - ./config-data:/config-data
     depends_on:
       postgres: { condition: service_healthy }
     networks: [platform]
@@ -351,6 +355,27 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
     profiles: ["mirrors"]
+    networks: [platform]
+
+  # ---------- OUTBOUND SYNC ----------
+  # Reads `service_mappings` and pushes matching audit_log rows to targets.
+  # Example: mail entities -> ./email/*.eml (readable via file://, IMAP, WebDAV).
+
+  sync-outbound:
+    build:
+      context: .
+      dockerfile: sync-outbound/Dockerfile
+    container_name: platform-sync-outbound
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://platform:platform@postgres:5432/platform
+      OUTBOUND_POLL_SECONDS: "3"
+      OUTBOUND_DIR: /data
+    volumes:
+      - ./data:/data
+    depends_on:
+      postgres: { condition: service_healthy }
+    profiles: ["outbound"]
     networks: [platform]
 
 networks:

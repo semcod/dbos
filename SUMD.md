@@ -21,7 +21,7 @@ Platform OS
 
 - **name**: `dbos`
 - **version**: `0.0.0`
-- **ecosystem**: SUMD + DOQL + testql + taskfile
+- **ecosystem**: SUMD + DOQL + testql + taskfile + config-manager
 - **generated_from**: testql(1), app.doql.less, goal.yaml, .env.example, docker-compose.yml, project/(2 analysis files)
 
 ## Architecture
@@ -153,6 +153,22 @@ pip install -e .[dev]
 - **nginx-cdn** image=`nginx:alpine` ports: `${CDN_PORT:-8080}:80`
 - **vfs-webdav** image=`./vfs-webdav` ports: `${WEBDAV_PORT:-8090}:8090`
 - **vfs-fuse** image=`./vfs-fuse`
+- **vfs-ftp** image=`./vfs-ftp` ports: `${FTP_PORT:-2121}:2121`, passive range `30000-30100`
+- **vfs-imap** image=`./vfs-imap` ports: `${IMAP_PORT:-1143}:1143`
+- **vfs-pop3** image=`./vfs-pop3` ports: `${POP3_PORT:-1110}:1110`
+- **vfs-smtp** image=`./vfs-smtp` ports: `${SMTP_PORT:-2525}:2525`
+- **storage-mirror** image=`./storage-mirror` profile `mirrors`
+- **sync-outbound** image=`./sync-outbound` profile `outbound`
+- **connectors** image=`./connectors` profile `connectors`
+
+## SDK (Python / JavaScript / PHP)
+
+Located in `sdk/`:
+- `python/dbos_client.py` — `DBOSClient` class with `login()`, `create_entity()`, `list_service_mappings()`, `set_config()`
+- `js/dbos_client.js` — async/await Node.js client
+- `php/DBOSClient.php` — PHP client using `file_get_contents`
+
+All implement: entities CRUD, 4 registry tables, config read/write.
 
 ## Environment Variables (`.env.example`)
 
@@ -173,6 +189,16 @@ pip install -e .[dev]
 | `JWT_SECRET` | `devsecret-change-me` |  |
 | `SYNC_MODE` | `dev` | dev = bi-directional, prod = DB is read-only authority |
 | `MERGE_POLICY` | `lww` | lww (last-write-wins) \| db-wins \| fs-wins |
+| `FTP_PORT` | `2121` | FTP gateway |
+| `FTP_USER` / `FTP_PASS` | `admin` / `admin` | FTP credentials |
+| `FTP_PASV_MIN` / `FTP_PASV_MAX` | `30000` / `30100` | FTP passive port range |
+| `IMAP_PORT` | `1143` | IMAP4rev1 gateway |
+| `IMAP_USER` / `IMAP_PASS` | `admin` / `admin` | IMAP credentials |
+| `POP3_PORT` | `1110` | POP3 gateway |
+| `POP3_USER` / `POP3_PASS` | `admin` / `admin` | POP3 credentials |
+| `SMTP_PORT` | `2525` | SMTP ingest gateway |
+| `MIRROR_POLL_SECONDS` | `3` | storage-mirror audit_log poll interval |
+| `OUTBOUND_POLL_SECONDS` | `3` | sync-outbound service_mappings poll interval |
 
 ## Release Management (`goal.yaml`)
 
@@ -401,6 +427,37 @@ EDGES:
 - `GET /capabilities` → `200`
 - `POST /execute` → `201`
 - assert `status < 400`
+
+### Protocol Gateways (4)
+
+**`FTP Access`**
+- `LIST` / `RETR` on `localhost:2121` returns entity bodies
+- Passive mode works with configured port range
+
+**`IMAP Access`**
+- `LOGIN` + `SELECT` + `FETCH` on `localhost:1143` returns messages
+- Each mailbox = one `entity_type`; each message = one entity with RFC-5322 headers
+
+**`POP3 Access`**
+- `USER/PASS` + `LIST` + `RETR` on `localhost:1110` returns messages
+- `UIDL` maps to `external_id`
+
+**`SMTP Ingest`**
+- `MAIL FROM` + `RCPT TO` + `DATA` accepted on `localhost:2525`
+- Message stored as `mail/*` entity in `content_markdown`
+
+### Storage Backends (1)
+
+**`SQLite Mirror`**
+- Declare `storage_backends` row with `driver='sqlite'`, `role='mirror'`
+- `storage-mirror` replays `audit_log` into local `.sqlite` file
+- Content is byte-for-byte identical to primary Postgres
+
+### Registry CRUD (3)
+
+- `GET|POST /api/storage-backends` — admin only write
+- `GET|POST /api/protocol-gateways` — admin only write
+- `GET|POST /api/inbound-sources` — admin only write
 
 ## Intent
 

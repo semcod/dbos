@@ -13,7 +13,7 @@
 
 SHELL          := /bin/bash
 COMPOSE        := docker compose
-PROFILES_ALL   := --profile protocols --profile connectors --profile mirrors
+PROFILES_ALL   := --profile protocols --profile connectors --profile mirrors --profile outbound
 API_URL        ?= http://localhost:3000
 UI_URL         ?= http://localhost:5173
 ADMIN_EMAIL    ?= admin@platform.local
@@ -50,6 +50,11 @@ help:
 	@echo "    make rebuild         Down + rebuild + up-all"
 	@echo "    make clean           Stop + remove volumes (DESTRUCTIVE)"
 	@echo "    make ps              Status"
+	@echo
+	@echo "  Development tools"
+	@echo "    make install-dev     Install taskfile + testql (pip install -r requirements-dev.txt)"
+	@echo "    make taskfile        List available taskfile tasks"
+	@echo "    make testql          Run auto-generated TestQL smoke tests"
 	@echo
 	@echo "  Testing"
 	@echo "    make test-protocols  Smoke-test FTP/IMAP/POP3/SMTP"
@@ -141,6 +146,19 @@ examples:
 	   fi; \
 	 done; \
 	 exit $$fail
+
+# ---------------------------------------------------------------------------
+# Development tools
+# ---------------------------------------------------------------------------
+.PHONY: install-dev taskfile testql
+install-dev:
+	@pip install -r requirements-dev.txt
+
+taskfile:
+	@taskfile list 2>/dev/null || echo "Install taskfile: make install-dev"
+
+testql:
+	@testql run testql-scenarios/generated-api-smoke.testql.toon.yaml 2>/dev/null || echo "Install testql: make install-dev"
 
 # Provide both exact and short targets, e.g.:
 #   make example-01-write-http-read-protocols

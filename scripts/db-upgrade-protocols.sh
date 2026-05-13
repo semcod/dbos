@@ -28,4 +28,12 @@ fi
 printf '== upgrade mail schema ==\n'
 "${PSQL[@]}" -f /docker-entrypoint-initdb.d/07_mail_schema.sql
 
+printf '== upgrade service mappings ==\n'
+if [[ "$(has_table service_mappings)" != "t" ]]; then
+  "${PSQL[@]}" -f /docker-entrypoint-initdb.d/08_service_mappings.sql
+  echo 'applied 08_service_mappings.sql'
+else
+  echo 'service_mappings already present; skipping 08_service_mappings.sql'
+fi
+
 echo 'protocol upgrade complete'

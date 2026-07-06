@@ -41,6 +41,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - feat: add more services
 - docs: add examples
 
+## [0.0.3] - 2026-07-06
+
+### Other
+- Update api-gateway/local.dev.txt
+- Update command-bus/local.dev.txt
+- Update generators/gen-handlebars/local.dev.txt
+- Update mirror-data/platform.sqlite
+- Update sync-engine/local.dev.txt
+
 ## [0.0.2] - 2026-04-24
 
 ### Docs

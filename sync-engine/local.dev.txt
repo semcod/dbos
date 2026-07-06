@@ -1,0 +1,8 @@
+# local.dev.txt — locally developed dependencies of this project (generated 2026-07-04)
+# by ~/github/local.dev.sh — DO NOT EDIT; see ~/github/local.dev.md
+# project: sync-engine 0.2.0 (js) at /home/tom/github/semcod/dbos/sync-engine
+# deps declared: 7 | with local source: 0
+
+## LOCAL DEPS: none — all dependencies are external
+
+## EXTERNAL DEPS (no local source, 7): chokidar, fast-json-patch, fast-xml-parser, gray-matter, js-yaml, pg, sharp

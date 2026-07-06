@@ -468,9 +468,6 @@ deployment would add:
 ## License
 
 Licensed under Apache-2.0.
-
-<!-- taskill:status:start -->
-
 ## Status
 
 _Last updated by [taskill](https://github.com/oqlos/taskill) at 2026-04-25 13:37 UTC_

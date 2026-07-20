@@ -5,4 +5,4 @@
 # testql     — Interface Query Language for GUI/API/encoder testing
 
 taskfile>=0.3.80
-testql>=1.2.63; python_version >= "3.11" and python_version < "3.14"
+testql>=1.2.64; python_version >= "3.11" and python_version < "3.14"

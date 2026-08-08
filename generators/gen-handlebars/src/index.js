@@ -7,6 +7,7 @@
 // Exact same DB contract as gen-jinja (Python) and gen-twig (PHP).
 
 import express from 'express';
+import cors from 'cors';
 import pg from 'pg';
 import Handlebars from 'handlebars';
 import crypto from 'node:crypto';
